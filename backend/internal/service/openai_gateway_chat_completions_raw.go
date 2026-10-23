@@ -268,7 +268,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletionsWithStartTime(
 	var result *OpenAIForwardResult
 	var forwardErr error
 	if clientStream {
-		result, forwardErr = s.streamRawChatCompletions(c, resp, account, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime, len(body))
+		result, forwardErr = s.streamRawChatCompletions(c, resp, account, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime, body)
 	} else {
 		result, forwardErr = s.bufferRawChatCompletions(c, resp, account, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 	}
@@ -307,7 +307,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	reasoningEffort *string,
 	serviceTier *string,
 	startTime time.Time,
-	requestBodyLen int,
+	requestBody []byte,
 ) (*OpenAIForwardResult, error) {
 	observer := upstreamResponseModelObserverFromContext(c)
 	if observer == nil {
@@ -322,8 +322,12 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	clientDisconnected := false
 	clientOutputStarted := false
 	pendingLines := make([]string, 0, 8)
-	refusalDetector := newOpenAIChatSilentRefusalDetector(requestBodyLen)
+	refusalDetector := newOpenAIChatSilentRefusalDetector(len(requestBody))
 	var terminal openAIRawStreamTerminalState
+	var miniMaxCompletion *miniMaxRawChatCompletionState
+	if account.Platform == PlatformMiniMax {
+		miniMaxCompletion = newMiniMaxRawChatCompletionState(requestBody)
+	}
 
 	writeLine := func(line string) {
 		if clientDisconnected {
@@ -359,6 +363,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 
 	for scanner.Scan() {
 		line := scanner.Text()
+		miniMaxCompletion.ObserveLine(line)
 		refusalDetector.ObserveSSELine(line)
 		if payload, ok := extractOpenAISSEDataLine(line); ok {
 			trimmedPayload := strings.TrimSpace(payload)
@@ -423,16 +428,24 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	clientAborted := clientDisconnected ||
 		errors.Is(scanErr, context.Canceled) ||
 		errors.Is(scanErr, context.DeadlineExceeded)
+	incomplete := terminal.IsTruncated(clientOutputStarted)
+	if miniMaxCompletion != nil {
+		clientAborted = clientDisconnected || c.Request.Context().Err() != nil
+		incomplete = scanErr != nil || !miniMaxCompletion.Complete()
+	}
 
 	// 上游在任何终止信号之前结束：连接被 reset（scanErr != nil）或干净 EOF。
 	// 两者都不能再记成功——此前统一返回 nil error，把上游截断伪装成
 	// `HTTP 200 + usage 0/0`，客户端收到半截回答且 Ops 侧完全无感。
-	if !clientAborted && terminal.IsTruncated(clientOutputStarted) {
+	if !clientAborted && incomplete {
 		cause := scanErr
 		if cause == nil {
 			cause = ErrOpenAIUpstreamStreamTruncated
+			if miniMaxCompletion != nil && miniMaxCompletion.invalid {
+				cause = errMiniMaxRawChatCompletionInvalid
+			}
 		}
-		logger.L().Warn("openai chat_completions raw: upstream stream truncated before terminal chunk",
+		logger.L().Warn("openai chat_completions raw: upstream stream did not complete successfully",
 			zap.Error(cause),
 			zap.String("request_id", requestID),
 			zap.Int64("account_id", account.ID),
@@ -470,6 +483,22 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 				c.Writer.Flush()
 				clientOutputStarted = true
 			}
+		}
+	}
+
+	if miniMaxCompletion != nil && miniMaxCompletion.Complete() &&
+		scanErr == nil && !clientAborted && !clientDisconnected && c.Request.Context().Err() == nil {
+		// Close the preceding event even when the upstream omitted its final blank
+		// line. Preserve a native sentinel, or add one when MiniMax ends at metadata.
+		if !miniMaxCompletion.endedWithSeparator {
+			writeLine("")
+		}
+		if !miniMaxCompletion.sawDone {
+			writeLine("data: [DONE]")
+			writeLine("")
+		}
+		if !clientDisconnected {
+			c.Writer.Flush()
 		}
 	}
 

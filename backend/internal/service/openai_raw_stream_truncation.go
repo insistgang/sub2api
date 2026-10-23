@@ -78,6 +78,119 @@ func (t *openAIRawStreamTerminalState) IsTruncated(clientOutputStarted bool) boo
 	return t.sawDataLine || !clientOutputStarted
 }
 
+// MiniMax may finish native Chat streams with successful base_resp metadata and
+// EOF instead of [DONE]. Verify completion before normalizing that convention;
+// the more permissive terminal policy above remains unchanged for other vendors.
+type miniMaxRawChatCompletionState struct {
+	expectedChoices    int64
+	finishedChoices    map[int64]bool
+	sawSuccessMetadata bool
+	sawDone            bool
+	endedWithSeparator bool
+	invalid            bool
+}
+
+var errMiniMaxRawChatCompletionInvalid = errors.New("MiniMax Chat Completions stream has invalid completion metadata")
+
+func newMiniMaxRawChatCompletionState(requestBody []byte) *miniMaxRawChatCompletionState {
+	expected := int64(1)
+	if n := gjson.GetBytes(requestBody, "n"); n.Exists() {
+		expected = n.Int()
+		if n.Type != gjson.Number || n.Float() != float64(expected) {
+			expected = 0
+		}
+	}
+	return &miniMaxRawChatCompletionState{expectedChoices: expected}
+}
+
+func (t *miniMaxRawChatCompletionState) ObserveLine(line string) {
+	if t == nil {
+		return
+	}
+	t.endedWithSeparator = line == ""
+	if t.invalid || line == "" || strings.HasPrefix(line, ":") {
+		return
+	}
+	if event, ok := extractOpenAISSEEventLine(line); ok {
+		t.invalid = strings.EqualFold(event, "error")
+		return
+	}
+	payload, ok := extractOpenAISSEDataLine(line)
+	if !ok {
+		t.invalid = !strings.HasPrefix(line, "id:") && !strings.HasPrefix(line, "retry:")
+		return
+	}
+	payload = strings.TrimSpace(payload)
+	if payload == "" {
+		return
+	}
+	if payload == "[DONE]" {
+		t.sawDone = true
+		return
+	}
+	var chunk struct {
+		Type    string          `json:"type"`
+		Object  string          `json:"object"`
+		Error   json.RawMessage `json:"error"`
+		Choices []struct {
+			Index        *int64                     `json:"index"`
+			Delta        map[string]json.RawMessage `json:"delta"`
+			FinishReason *string                    `json:"finish_reason"`
+		} `json:"choices"`
+		BaseResp *struct {
+			StatusCode *int64 `json:"status_code"`
+		} `json:"base_resp"`
+	}
+	if json.Unmarshal([]byte(payload), &chunk) != nil || chunk.Choices == nil ||
+		chunk.Type == "error" || chunk.Object == "error" ||
+		(len(chunk.Error) > 0 && strings.TrimSpace(string(chunk.Error)) != "null") || t.sawDone {
+		t.invalid = true
+		return
+	}
+	if gjson.Get(payload, "base_resp").Exists() {
+		if chunk.BaseResp == nil || chunk.BaseResp.StatusCode == nil || *chunk.BaseResp.StatusCode != 0 {
+			t.invalid = true
+			return
+		}
+		t.sawSuccessMetadata = true
+	}
+	if t.finishedChoices == nil {
+		t.finishedChoices = make(map[int64]bool)
+	}
+	seen := make(map[int64]bool, len(chunk.Choices))
+	for _, choice := range chunk.Choices {
+		if choice.Index == nil || *choice.Index < 0 || *choice.Index >= t.expectedChoices ||
+			choice.Delta == nil || seen[*choice.Index] || t.finishedChoices[*choice.Index] {
+			t.invalid = true
+			return
+		}
+		seen[*choice.Index] = true
+		finished := choice.FinishReason != nil
+		if finished {
+			switch *choice.FinishReason {
+			case "stop", "length", "tool_calls", "content_filter", "function_call":
+			default:
+				t.invalid = true
+				return
+			}
+		}
+		t.finishedChoices[*choice.Index] = finished
+	}
+}
+
+func (t *miniMaxRawChatCompletionState) Complete() bool {
+	if t == nil || t.invalid || t.expectedChoices <= 0 ||
+		int64(len(t.finishedChoices)) != t.expectedChoices || (!t.sawDone && !t.sawSuccessMetadata) {
+		return false
+	}
+	for _, finished := range t.finishedChoices {
+		if !finished {
+			return false
+		}
+	}
+	return true
+}
+
 // newOpenAIRawStreamTruncatedFailoverError 处理"上游截断且尚未向客户端写出任何
 // 字节"的情况：响应头还没提交，可以透明换号重试，客户端不会看到半截流。
 func newOpenAIRawStreamTruncatedFailoverError(
