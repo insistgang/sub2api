@@ -455,6 +455,9 @@ func (s *OpenAIGatewayService) newOpenAIAccountFailoverErrorWithClassificationHe
 		upstreamMsg,
 		retryableOnSameAccount || oauth429Retry,
 	)
+	if account != nil {
+		failoverErr.SetUpstreamPlatformIfEmpty(account.Platform)
+	}
 	if oauth429Retry {
 		failoverErr.SameAccountRetryDeadline = s.openAIOAuth429RetryDeadline(account)
 		failoverErr.SameAccountRetryDelay = openAIOAuth429SameAccountRetryDelay(responseHeaders, failoverErr.SameAccountRetryDeadline)
@@ -662,13 +665,15 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 			Detail:             upstreamDetail,
 		})
 		s.handleOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, body, requestedModel...)
-		return nil, newOpenAIUpstreamFailoverError(
+		failoverErr := newOpenAIUpstreamFailoverError(
 			resp.StatusCode,
 			resp.Header,
 			body,
 			upstreamMsg,
 			false,
 		)
+		failoverErr.SetUpstreamPlatformIfEmpty(account.Platform)
+		return nil, failoverErr
 	}
 
 	if status, errType, errMsg, matched := applyErrorPassthroughRule(
@@ -751,6 +756,7 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 	})
 	if shouldDisable {
 		return nil, &UpstreamFailoverError{
+			UpstreamPlatform:       account.Platform,
 			StatusCode:             resp.StatusCode,
 			ResponseBody:           body,
 			RetryableOnSameAccount: false,
@@ -950,6 +956,7 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 	})
 	if shouldDisable {
 		return nil, &UpstreamFailoverError{
+			UpstreamPlatform:       account.Platform,
 			StatusCode:             resp.StatusCode,
 			ResponseBody:           body,
 			RetryableOnSameAccount: false,
