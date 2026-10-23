@@ -28,6 +28,16 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+class SafeArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        # Invalid arguments can contain accidentally pasted credentials.
+        if message.startswith('unrecognized arguments:'):
+            message = 'unrecognized arguments; use --help for supported options'
+        elif 'ignored explicit argument' in message:
+            message = message.split(':', 1)[0] + ': does not accept a value'
+        super().error(message)
+
+
 def bounded_timeout(value):
     try:
         seconds = float(value)
@@ -36,6 +46,22 @@ def bounded_timeout(value):
     if not math.isfinite(seconds) or not 1 <= seconds <= 120:
         raise argparse.ArgumentTypeError('timeout must be between 1 and 120 seconds')
     return seconds
+
+
+def bounded_max_tokens(value):
+    try:
+        maximum = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError('max tokens must be an integer between 128 and 16384') from None
+    if not 128 <= maximum <= 16384:
+        raise argparse.ArgumentTypeError('max tokens must be an integer between 128 and 16384')
+    return maximum
+
+
+def tool_choice_mode(value):
+    if value not in ('auto', 'named'):
+        raise argparse.ArgumentTypeError('tool choice must be auto or named')
+    return value
 
 
 def strict_json(value):
@@ -82,15 +108,16 @@ def endpoint_for(model, secrets):
     return url, display_host + (':' + str(port) if port else ''), parts.path
 
 
-def payload_for(model, stream, tool_call):
-    payload = {'model': model, 'stream': stream, 'max_tokens': 256,
+def payload_for(model, stream, tool_call, tool_choice='auto', max_tokens=1024):
+    payload = {'model': model, 'stream': stream, 'max_tokens': max_tokens,
                'messages': [{'role': 'user', 'content': 'Reply with OK.'}]}
     if tool_call:
         payload['messages'][0]['content'] = 'Call diagnostic_ping with an empty JSON object.'
         payload['tools'] = [{'type': 'function', 'function': {
             'name': 'diagnostic_ping', 'description': 'A local diagnostic with no side effects.',
             'parameters': {'type': 'object', 'properties': {}, 'additionalProperties': False}}}]
-        payload['tool_choice'] = {'type': 'function', 'function': {'name': 'diagnostic_ping'}}
+        payload['tool_choice'] = ('auto' if tool_choice == 'auto' else
+                                  {'type': 'function', 'function': {'name': 'diagnostic_ping'}})
     return payload
 
 
@@ -264,7 +291,7 @@ def read_body(reply, stream, started, timeout):
     return body
 
 
-def probe(model, secrets, live, timeout, stream, tool_call):
+def probe(model, secrets, live, timeout, stream, tool_call, tool_choice='auto', max_tokens=1024):
     result = result_for(model['id'])
     try:
         url, result['host'], result['path'] = endpoint_for(model, secrets)
@@ -276,7 +303,8 @@ def probe(model, secrets, live, timeout, stream, tool_call):
     started = time.monotonic()
     try:
         request = urllib.request.Request(url, method='POST',
-            data=json.dumps(payload_for(model['id'], stream, tool_call)).encode('utf-8'),
+            data=json.dumps(payload_for(model['id'], stream, tool_call,
+                                        tool_choice=tool_choice, max_tokens=max_tokens)).encode('utf-8'),
             headers={'Authorization': 'Bearer ' + model['apiKey'], 'Content-Type': 'application/json',
                      'Accept': 'text/event-stream' if stream else 'application/json'})
         with urllib.request.build_opener(NoRedirect()).open(request, timeout=timeout) as reply:
@@ -345,15 +373,22 @@ def save_report(path, text, config_path):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = SafeArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--config', type=Path, default=Path.home() / '.workbuddy/models.json')
     parser.add_argument('--live', action='store_true', help='send one short text or diagnostic function request per selected model')
     parser.add_argument('--model', action='append', default=[], help='exact model ID; repeat to select several')
     parser.add_argument('--timeout', type=bounded_timeout, default=30.0, help='socket timeout in seconds, 1–120 (default: 30)')
+    parser.add_argument('--max-tokens', type=bounded_max_tokens, default=1024,
+                        help='output token budget, 128–16384 (default: 1024)')
     parser.add_argument('--stream', action='store_true', help='require complete Chat Completions SSE')
     parser.add_argument('--tool-call', action='store_true', help='require a diagnostic_ping function call; no function is executed')
+    parser.add_argument('--tool-choice', type=tool_choice_mode, metavar='{auto,named}',
+                        help='tool selection mode with --tool-call (default: auto)')
     parser.add_argument('--output', type=Path, help='explicitly save the sanitized JSON report with mode 600')
     args = parser.parse_args(argv)
+    if args.tool_choice is not None and not args.tool_call:
+        parser.error('--tool-choice requires --tool-call')
+    tool_choice = args.tool_choice or 'auto'
     secrets = set()
     try:
         try:
@@ -384,11 +419,17 @@ def main(argv=None):
                 result = result_for(model_id)
                 result.update(passed=False, category='model_not_found')
             else:
-                result = probe(by_id[model_id], secrets, args.live, args.timeout, args.stream, args.tool_call)
+                result = probe(by_id[model_id], secrets, args.live, args.timeout, args.stream, args.tool_call,
+                               tool_choice=tool_choice, max_tokens=args.max_tokens)
             results.append(result)
         report = report_for(results, args.live)
     except ProbeFailure as error:
         report = report_for([], args.live, str(error))
+    report['probe_settings'] = {
+        'stream': args.stream, 'tool_call': args.tool_call,
+        'tool_choice': tool_choice if args.tool_call else None,
+        'max_tokens': args.max_tokens, 'timeout_seconds': args.timeout,
+    }
     report = redact(report, secrets)
     text = json.dumps(report, ensure_ascii=True, indent=2) + '\n'
     if args.output and report['category'] != 'output_error':

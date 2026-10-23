@@ -104,8 +104,49 @@ class WorkBuddySmokeTest(unittest.TestCase):
             for tool_call in (False, True):
                 with self.subTest(stream=stream, tool_call=tool_call):
                     payload = smoke.payload_for(MODEL['id'], stream, tool_call)
-                    self.assertEqual(payload.get('max_tokens'), 256)
+                    self.assertEqual(payload.get('max_tokens'), 1024)
                     self.assertNotIn('max_completion_tokens', payload)
+
+    def test_auto_and_named_tool_choice_payloads_are_distinct(self):
+        for choice in ('auto', 'named'):
+            with self.subTest(choice=choice):
+                code, report, opener, _, _, _, _ = self.run_checker(
+                    FakeReply(tool_response()), ['--live', '--tool-call', '--tool-choice', choice])
+                self.assertEqual(code, 0)
+                payload = json.loads(opener.requests[0][0].data)
+                expected = 'auto' if choice == 'auto' else {
+                    'type': 'function', 'function': {'name': 'diagnostic_ping'}}
+                self.assertEqual(payload['tool_choice'], expected)
+                self.assertEqual(payload['tools'][0]['function']['name'], 'diagnostic_ping')
+                self.assertEqual(payload['max_tokens'], 1024)
+                self.assertEqual(report['probe_settings']['tool_choice'], choice)
+
+    def test_max_tokens_bounds_are_sent_as_max_tokens(self):
+        for maximum in (128, 2048, 16384):
+            with self.subTest(maximum=maximum):
+                code, report, opener, _, _, _, _ = self.run_checker(
+                    FakeReply(text_response()), ['--live', '--max-tokens', str(maximum)])
+                self.assertEqual(code, 0)
+                payload = json.loads(opener.requests[0][0].data)
+                self.assertEqual(payload['max_tokens'], maximum)
+                self.assertNotIn('max_completion_tokens', payload)
+                self.assertEqual(report['probe_settings']['max_tokens'], maximum)
+
+    def test_sanitized_reports_include_effective_probe_settings(self):
+        code, report, _, calls, _, _, _ = self.run_checker()
+        self.assertEqual((code, calls), (0, 0))
+        self.assertEqual(report['probe_settings'], {
+            'stream': False, 'tool_call': False, 'tool_choice': None,
+            'max_tokens': 1024, 'timeout_seconds': 30.0})
+        code, report, _, calls, _, saved, mode = self.run_checker(flags=[
+            '--stream', '--tool-call', '--tool-choice', 'named', '--max-tokens', '2048', '--timeout', '12'],
+            output=True)
+        self.assertEqual((code, calls, mode), (0, 0, 0o600))
+        self.assertEqual(report['probe_settings'], {
+            'stream': True, 'tool_call': True, 'tool_choice': 'named',
+            'max_tokens': 2048, 'timeout_seconds': 12.0})
+        self.assertEqual(json.loads(saved), report)
+        self.assertNotIn(SECRET, saved)
 
     def test_http_200_error_empty_success_and_http_503_fail(self):
         for reply, category in (
@@ -148,17 +189,36 @@ class WorkBuddySmokeTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(report['results'][0]['tool_calls'], 1)
         payload = json.loads(opener.requests[0][0].data)
-        self.assertEqual(payload['tool_choice']['function']['name'], 'diagnostic_ping')
+        self.assertEqual(payload['tool_choice'], 'auto')
         for body in (tool_response('{'), tool_response('[]'), tool_response('{}', 'other'), text_response()):
             code, report, _, _, _, _, _ = self.run_checker(FakeReply(body), ['--live', '--tool-call'])
             self.assertEqual(code, 1)
             self.assertEqual(report['results'][0]['category'], 'invalid_tool_call')
 
     def test_diagnostic_ping_rejects_unexpected_arguments(self):
-        code, report, _, _, _, _, _ = self.run_checker(
-            FakeReply(tool_response('{"unexpected": true}')), ['--live', '--tool-call'])
-        self.assertEqual(code, 1)
-        self.assertEqual(report['results'][0]['category'], 'invalid_tool_call')
+        for choice in ('auto', 'named'):
+            with self.subTest(choice=choice):
+                code, report, _, _, _, _, _ = self.run_checker(
+                    FakeReply(tool_response('{"unexpected": true}')),
+                    ['--live', '--tool-call', '--tool-choice', choice])
+                self.assertEqual(code, 1)
+                self.assertEqual(report['results'][0]['category'], 'invalid_tool_call')
+
+    def test_text_answers_never_pass_tool_probes_in_either_mode(self):
+        for choice in ('auto', 'named'):
+            for stream in (False, True):
+                with self.subTest(choice=choice, stream=stream):
+                    flags = ['--live', '--tool-call', '--tool-choice', choice]
+                    reply = FakeReply(text_response())
+                    if stream:
+                        flags.append('--stream')
+                        reply = FakeReply(sse(
+                            {'choices': [{'delta': {'content': 'OK'}, 'finish_reason': None}]},
+                            {'choices': [{'delta': {}, 'finish_reason': 'stop'}]}),
+                            content_type='text/event-stream')
+                    code, report, _, _, _, _, _ = self.run_checker(reply, flags)
+                    self.assertEqual(code, 1)
+                    self.assertEqual(report['results'][0]['category'], 'invalid_tool_call')
 
     def test_streamed_tool_arguments_are_assembled_before_validation(self):
         initial = {'choices': [{'delta': {'tool_calls': [
@@ -294,6 +354,29 @@ class WorkBuddySmokeTest(unittest.TestCase):
         code, report, _, calls, stderr, _, _ = self.run_checker(models={'apiKey': SECRET})
         self.assertEqual((code, calls), (1, 0))
         self.assertNotIn(SECRET, json.dumps(report) + stderr)
+
+    def test_invalid_probe_arguments_fail_before_config_reads_without_echoing_values(self):
+        invalid = [
+            ['--max-tokens', value] for value in ('127', '16385', '1.5', 'nan', 'inf', SECRET)
+        ] + [
+            ['--tool-call', '--tool-choice', SECRET],
+            ['--tool-choice', 'named'],
+            ['--unknown-option', SECRET],
+            ['--stream=' + SECRET],
+        ]
+        for flags in invalid:
+            with self.subTest(flags=flags):
+                stderr = io.StringIO()
+                with patch.object(smoke.Path, 'read_text') as read_config, \
+                        patch.object(smoke.urllib.request, 'build_opener') as build, \
+                        patch('sys.stderr', stderr):
+                    with self.assertRaises(SystemExit) as exit_info:
+                        smoke.main(flags)
+                self.assertEqual(exit_info.exception.code, 2)
+                read_config.assert_not_called()
+                build.assert_not_called()
+                self.assertIn('error:', stderr.getvalue())
+                self.assertNotIn(SECRET, stderr.getvalue())
 
 
 if __name__ == '__main__':
