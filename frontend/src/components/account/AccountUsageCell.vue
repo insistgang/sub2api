@@ -764,8 +764,36 @@ const loading = ref(false)
 const activeQueryLoading = ref(false)
 const error = ref<string | null>(null)
 const usageInfo = ref<AccountUsageInfo | null>(null)
+const pendingStatusRefresh = new Set<number>()
+
+// Usage probes can recover a stale limiter on the server. Re-read the account
+// instead of inferring scheduling state from percentages or cached windows.
+const refreshOpenAIAccountStatus = async () => {
+  const account = props.account
+  if (account.platform !== 'openai' || account.type !== 'oauth' || account.parent_account_id != null ||
+      !account.rate_limit_reset_at || Date.parse(account.rate_limit_reset_at) <= Date.now() ||
+      pendingStatusRefresh.has(account.id)) return
+  pendingStatusRefresh.add(account.id)
+  try {
+    const updated = await adminAPI.accounts.getById(account.id)
+    if (!updated || updated.id !== account.id || unmounted.value || props.account.id !== account.id ||
+        Date.parse(updated.updated_at) < Date.parse(props.account.updated_at)) return
+    if (updated.rate_limited_at !== props.account.rate_limited_at ||
+        updated.rate_limit_reset_at !== props.account.rate_limit_reset_at) {
+      emit('account-updated', updated)
+    }
+  } catch (e) {
+    console.error('Failed to refresh OpenAI account status after usage query:', e)
+  } finally {
+    pendingStatusRefresh.delete(account.id)
+  }
+}
+
 watch(usageInfo, (usage) => {
-  if (usage) emit('usage-loaded', usage)
+  if (usage) {
+    emit('usage-loaded', usage)
+    void refreshOpenAIAccountStatus()
+  }
 })
 const rootRef = ref<HTMLElement | null>(null)
 const isDesktopViewport = ref(

@@ -335,6 +335,11 @@ func (s *OpenAIQuotaAutoResetService) evaluateAccount(ctx context.Context, accou
 	if err != nil || usage == nil {
 		return s.failState(ctx, accountID, checking, "RESET_CREDIT_QUERY_FAILED", err)
 	}
+	if healthyOpenAIQuotaUsage(usage) {
+		if err := clearOpenAIRateLimitAfterRecovery(ctx, s.accountRepo, account); err != nil {
+			return s.failState(ctx, accountID, checking, "RATE_LIMIT_RECOVERY_FAILED", err)
+		}
+	}
 	if err := s.persistFreshUsage(ctx, accountID, usage, now); err != nil {
 		return s.failState(ctx, accountID, checking, "USAGE_SNAPSHOT_WRITE_FAILED", err)
 	}

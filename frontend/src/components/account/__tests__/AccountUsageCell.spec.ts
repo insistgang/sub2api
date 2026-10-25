@@ -3,14 +3,16 @@ import { flushPromises, mount } from '@vue/test-utils'
 import AccountUsageCell from '../AccountUsageCell.vue'
 import type { Account } from '@/types'
 
-const { getUsage } = vi.hoisted(() => ({
-  getUsage: vi.fn()
+const { getUsage, getById } = vi.hoisted(() => ({
+  getUsage: vi.fn(),
+  getById: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
-      getUsage
+      getUsage,
+      getById
     }
   }
 }))
@@ -115,6 +117,7 @@ const cnUsageCellStubs = {
 describe('AccountUsageCell', () => {
   beforeEach(() => {
     getUsage.mockReset()
+    getById.mockReset()
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       value: vi.fn().mockImplementation(() => ({
@@ -128,6 +131,66 @@ describe('AccountUsageCell', () => {
         dispatchEvent: vi.fn(),
       }))
     })
+  })
+
+  it('refreshes the canonical OpenAI account status after a usage read recovers its limiter', async () => {
+    const limited = makeAccount({
+      id: 81001, platform: 'openai', type: 'oauth',
+      rate_limited_at: '2026-10-25T05:33:40Z',
+      rate_limit_reset_at: '2099-10-25T09:16:31Z',
+    })
+    const recovered = { ...limited, rate_limited_at: null, rate_limit_reset_at: null }
+    getUsage.mockResolvedValue({ five_hour: { utilization: 0 }, seven_day: { utilization: 0 } })
+    getById.mockResolvedValue(recovered)
+    const wrapper = mount(AccountUsageCell, {
+      props: { account: limited },
+      global: { stubs: { UsageProgressBar: true, OpenAIQuotaResetCell: true } },
+    })
+    await flushPromises()
+    expect(getById).toHaveBeenCalledWith(limited.id)
+    expect(wrapper.emitted('account-updated')).toEqual([[recovered]])
+    wrapper.unmount()
+  })
+
+  it('does not infer recovery from zero usage while the server still reports a limiter', async () => {
+    const limited = makeAccount({
+      id: 81002, platform: 'openai', type: 'oauth',
+      rate_limited_at: '2026-10-25T05:33:40Z',
+      rate_limit_reset_at: '2099-10-25T09:16:31Z',
+    })
+    getUsage.mockResolvedValue({ five_hour: { utilization: 0 }, seven_day: { utilization: 0 } })
+    getById.mockResolvedValue(limited)
+    const wrapper = mount(AccountUsageCell, {
+      props: { account: limited },
+      global: { stubs: { UsageProgressBar: true, OpenAIQuotaResetCell: true } },
+    })
+    await flushPromises()
+    expect(getById).toHaveBeenCalledWith(limited.id)
+    expect(wrapper.emitted('account-updated')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('discards an older status response after a newer account generation arrives', async () => {
+    const limited = makeAccount({
+      id: 81003, platform: 'openai', type: 'oauth',
+      rate_limited_at: '2026-10-25T05:33:40Z',
+      rate_limit_reset_at: '2099-10-25T09:16:31Z',
+      updated_at: '2026-10-25T06:00:00Z',
+    })
+    let finish: (account: Account) => void = () => { throw new Error('status request missing') }
+    getById.mockReturnValue(new Promise<Account>((resolve) => { finish = resolve }))
+    getUsage.mockResolvedValue({ five_hour: { utilization: 0 }, seven_day: { utilization: 0 } })
+    const wrapper = mount(AccountUsageCell, {
+      props: { account: limited },
+      global: { stubs: { UsageProgressBar: true, OpenAIQuotaResetCell: true } },
+    })
+    await flushPromises()
+    expect(getById).toHaveBeenCalledWith(limited.id)
+    await wrapper.setProps({ account: { ...limited, updated_at: '2026-10-25T06:02:00Z' } })
+    finish({ ...limited, rate_limited_at: null, rate_limit_reset_at: null, updated_at: '2026-10-25T06:01:00Z' })
+    await flushPromises()
+    expect(wrapper.emitted('account-updated')).toBeUndefined()
+    wrapper.unmount()
   })
 
   it('renders eligible Ollama Cloud state and forwards query updates', async () => {
