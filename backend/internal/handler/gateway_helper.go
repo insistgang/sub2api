@@ -234,10 +234,23 @@ func (h *ConcurrencyHelper) TryAcquireUserSlot(ctx context.Context, userID int64
 	return result.ReleaseFunc, true, nil
 }
 
-func (h *ConcurrencyHelper) TryAcquireUserSlotForAPIKey(ctx context.Context, userID int64, maxConcurrency int, apiKeyID int64) (func(), bool, error) {
-	releaseFunc, acquired, err := h.TryAcquireUserSlot(ctx, userID, maxConcurrency)
+// TryAcquireUserSlotForOwner bypasses only the user slot for a verified admin owner.
+// Account slots, ingress leases and API-key statistics remain independent.
+func (h *ConcurrencyHelper) TryAcquireUserSlotForOwner(ctx context.Context, userID int64, maxConcurrency int, apiKey *service.APIKey) (func(), bool, error) {
+	if service.AuthenticatedAPIKeyOwnerRole(apiKey, userID) == service.RoleAdmin {
+		return func() {}, true, nil
+	}
+	return h.TryAcquireUserSlot(ctx, userID, maxConcurrency)
+}
+
+func (h *ConcurrencyHelper) TryAcquireUserSlotForAPIKey(ctx context.Context, userID int64, maxConcurrency int, apiKey *service.APIKey) (func(), bool, error) {
+	releaseFunc, acquired, err := h.TryAcquireUserSlotForOwner(ctx, userID, maxConcurrency, apiKey)
 	if err != nil || !acquired {
 		return releaseFunc, acquired, err
+	}
+	apiKeyID := int64(0)
+	if apiKey != nil {
+		apiKeyID = apiKey.ID
 	}
 	return h.withAPIKeySlot(ctx, apiKeyID, releaseFunc), true, nil
 }
@@ -264,7 +277,8 @@ func (h *ConcurrencyHelper) TryAcquireAccountSlot(ctx context.Context, accountID
 	return result.ReleaseFunc, true, nil
 }
 
-// AcquireUserSlotWithWait acquires a user concurrency slot, waiting if necessary.
+// AcquireUserSlotWithWait applies the user slot and wait queue to non-admin owners.
+// Verified admin owners skip that layer; API-key tracking and account gates remain active.
 // For streaming requests, sends ping events during the wait.
 // streamStarted is updated if streaming response has begun.
 func (h *ConcurrencyHelper) AcquireUserSlotWithWait(c *gin.Context, userID int64, maxConcurrency int, isStream bool, streamStarted *bool) (func(), error) {
@@ -274,8 +288,10 @@ func (h *ConcurrencyHelper) AcquireUserSlotWithWait(c *gin.Context, userID int64
 func (h *ConcurrencyHelper) acquireUserSlotWithWaitTimeout(c *gin.Context, userID int64, maxConcurrency int, timeout time.Duration, isStream bool, streamStarted *bool) (func(), error) {
 	ctx := c.Request.Context()
 
-	// Try to acquire immediately
-	releaseFunc, acquired, err := h.TryAcquireUserSlot(ctx, userID, maxConcurrency)
+	apiKey, _ := middleware2.GetAPIKeyFromContext(c)
+
+	// The owner-aware fast path returns before any user slot or queue operation.
+	releaseFunc, acquired, err := h.TryAcquireUserSlotForOwner(ctx, userID, maxConcurrency, apiKey)
 	if err != nil {
 		return nil, err
 	}

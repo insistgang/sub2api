@@ -40,6 +40,8 @@ type LiveCallRequest struct {
 }
 
 type LiveCallIdentity struct {
+	// OwnerRole is supplied internally from the authenticated API-key owner.
+	OwnerRole       string `json:"-"`
 	APIKeyID        int64
 	UserID          int64
 	GroupID         *int64
