@@ -84,6 +84,9 @@ func shouldPreserveOpenAIResponsesNoneReasoningEffort(account *Account) bool {
 // non-reasoning model. Treat that catalog-only "none" value as omission for
 // compatible upstreams, while preserving official OpenAI request semantics.
 func filterOpenAIResponsesNoneReasoningEffortForAccount(account *Account, body []byte) ([]byte, error) {
+	if account != nil && openai.IsGPT61TerraModelSpelling(account.GetMappedModel(gjson.GetBytes(body, "model").String())) {
+		return body, nil
+	}
 	if len(body) == 0 || shouldPreserveOpenAIResponsesNoneReasoningEffort(account) {
 		return body, nil
 	}
@@ -1332,7 +1335,7 @@ func normalizeOpenAIOAuthResponsesCompatibilityBody(body []byte) ([]byte, bool, 
 }
 
 func normalizeGPT6ResponsesSampling(body []byte, model string) ([]byte, bool, error) {
-	if (!openai.IsGPT6SolOrLunaModelSpelling(model) && !openai.IsGPT61SolModelSpelling(model)) || gjson.GetBytes(body, "reasoning.effort").String() == "none" {
+	if (!openai.IsGPT6SolOrLunaModelSpelling(model) && !openai.IsGPT61SolModelSpelling(model) && !openai.IsGPT61TerraModelSpelling(model)) || gjson.GetBytes(body, "reasoning.effort").String() == "none" {
 		return body, false, nil
 	}
 	out := body
@@ -1374,6 +1377,11 @@ func normalizeOpenAIResponsesReasoningMode(body []byte, model string) ([]byte, b
 	// established mode stripping and pro-to-max compatibility behavior.
 	if model == "" {
 		model = gjson.GetBytes(body, "model").String()
+	}
+	if openai.IsGPT61TerraModelSpelling(model) {
+		if err := validateGPT61TerraCompatRequest(body, model); err != nil {
+			return body, false, err
+		}
 	}
 	if isOpenAIGPT6Model(model) {
 		return normalizeGPT6ResponsesSampling(body, model)
@@ -2601,9 +2609,14 @@ func supportsOpenAIReasoningEffortMax(model string) bool {
 	}
 }
 
-// validateGPT61SolCompatRequest runs after model mapping, before conversion can
-// discard unsupported explicit effort selections or disabled thinking.
+// validateGPT61SolCompatRequest retains the existing call-site entry point for
+// model-specific validation, including Terra, before conversion can discard
+// unsupported explicit effort selections or disabled thinking.
 func validateGPT61SolCompatRequest(body []byte, model string) error {
+	if openai.IsGPT61TerraModelSpelling(model) {
+		return validateGPT61TerraCompatRequest(body, model)
+	}
+
 	if !openai.IsGPT61SolModelSpelling(model) {
 		return nil
 	}
@@ -2620,6 +2633,23 @@ func validateGPT61SolCompatRequest(body []byte, model string) error {
 		if strings.HasSuffix(strings.ToLower(requestedModel), "-"+effort) {
 			return openai.ValidateGPT61SolReasoningEffort(model, effort)
 		}
+	}
+	return nil
+}
+
+// Validate before bridge conversion can erase unsupported explicit effort values.
+func validateGPT61TerraCompatRequest(body []byte, model string) error {
+	if !openai.IsGPT61TerraModelSpelling(model) {
+		return nil
+	}
+	for _, path := range []string{"reasoning.effort", "reasoning_effort", "output_config.effort"} {
+		if err := openai.ValidateGPT61TerraReasoningEffort(model, gjson.GetBytes(body, path).String()); err != nil {
+			return err
+		}
+	}
+	requested := openai.CanonicalizeOpenAIModelAliasSpelling(gjson.GetBytes(body, "model").String())
+	if effort, ok := strings.CutPrefix(requested, "gpt-6.1-terra-"); ok && effort != "openai-compact" {
+		return openai.ValidateGPT61TerraReasoningEffort(model, effort)
 	}
 	return nil
 }
