@@ -173,6 +173,7 @@ const DataTableStub = {
           <slot name="cell-id" :value="row.id" :row="row" />
         </div>
         <slot name="cell-name" :value="row.name" :row="row" />
+        <div data-test="key-usage"><slot name="cell-usage" :row="row" /></div>
         <slot name="cell-actions" :row="row" />
         <div data-test="current-concurrency">
           <slot name="cell-current_concurrency" :value="row.current_concurrency" :row="row" />
@@ -295,6 +296,23 @@ describe('user KeysView column settings', () => {
     getAvailableGroups.mockResolvedValue([])
     getUserGroupRates.mockResolvedValue({})
     isCurrentStep.mockReturnValue(false)
+  })
+
+  it('shows standard costs rather than discounted deductions in the usage column', async () => {
+    getDashboardApiKeysUsage.mockResolvedValue({ stats: { '1': {
+      api_key_id: 1,
+      today_cost: 0.25,
+      total_cost: 2.5,
+      today_actual_cost: 0.05,
+      total_actual_cost: 0.5,
+    } } })
+    const wrapper = await mountView()
+    const usage = wrapper.get('[data-test="key-usage"]').text()
+    expect(usage).toContain('¥0.2500')
+    expect(usage).toContain('¥2.5000')
+    expect(usage).not.toContain('¥0.0500')
+    expect(usage).not.toContain('¥0.5000')
+    wrapper.unmount()
   })
 
   it.each([
