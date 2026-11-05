@@ -150,6 +150,9 @@ func (s *PaymentService) reconcilePaid(ctx context.Context, o *dbent.PaymentOrde
 }
 
 func (s *PaymentService) checkPaidWithOptions(ctx context.Context, o *dbent.PaymentOrder, opts checkPaidOptions) string {
+	if IsManualPaymentOrder(o) {
+		return ""
+	}
 	prov, err := s.getOrderProvider(ctx, o)
 	if err != nil {
 		return ""
@@ -310,6 +313,7 @@ func (s *PaymentService) ReconcilePendingPaymentOrders(ctx context.Context) (int
 	orders, err := s.entClient.PaymentOrder.Query().
 		Where(
 			paymentorder.StatusEQ(OrderStatusPending),
+			paymentorder.Or(paymentorder.ProviderKeyIsNil(), paymentorder.ProviderKeyNEQ(payment.TypeManual)),
 			paymentorder.ExpiresAtGT(now),
 			paymentorder.Or(
 				paymentorder.PaymentTypeEQ(payment.TypeWxpay),

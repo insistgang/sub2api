@@ -3,6 +3,7 @@ import type { CreateOrderResult, MethodLimit } from '@/types/payment'
 import {
   buildCreateOrderPayload,
   decidePaymentLaunch,
+  filterPaymentMethodsForOrder,
   getVisibleMethods,
   readPaymentRecoverySnapshot,
   type PaymentRecoverySnapshot,
@@ -71,9 +72,47 @@ describe('getVisibleMethods', () => {
       usdt_trc20: methodLimit({ fee_rate: 1 }),
     })
   })
+
+  it('preserves the manual-source marker on canonical checkout methods', () => {
+    const visible = getVisibleMethods({
+      alipay: methodLimit({ is_manual: true }),
+      wxpay: methodLimit(),
+    })
+
+    expect(visible.alipay.is_manual).toBe(true)
+    expect(visible.wxpay.is_manual).toBeUndefined()
+  })
+
+  it('excludes manual QR methods from subscription checkout only', () => {
+    const methods = {
+      alipay: methodLimit({ is_manual: true }),
+      wxpay: methodLimit(),
+    }
+
+    expect(Object.keys(filterPaymentMethodsForOrder(methods, 'subscription'))).toEqual(['wxpay'])
+    expect(Object.keys(filterPaymentMethodsForOrder(methods, 'balance'))).toEqual(['alipay', 'wxpay'])
+  })
 })
 
 describe('decidePaymentLaunch', () => {
+  it('routes manual QR orders to review flow before automatic payment handlers', () => {
+    const decision = decidePaymentLaunch(createOrderResult({
+      result_type: 'manual_required',
+      is_manual: true,
+      qr_code_img: 'data:image/png;base64,AAAA',
+      qr_code: 'weixin://must-not-be-used-as-the-personal-image',
+      pay_url: 'https://must-not-be-opened.invalid',
+    }), {
+      visibleMethod: 'wxpay',
+      orderType: 'balance',
+      isMobile: true,
+      isWechatBrowser: true,
+    })
+
+    expect(decision.kind).toBe('manual_route')
+    expect(decision.manualPath).toBe('/payment/manual/101')
+  })
+
   it('uses Stripe popup waiting flow for desktop Alipay client secret', () => {
     const decision = decidePaymentLaunch(createOrderResult({
       client_secret: 'cs_test',

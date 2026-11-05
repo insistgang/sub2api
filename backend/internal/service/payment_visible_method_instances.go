@@ -9,6 +9,7 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
+	"github.com/Wei-Shaw/sub2api/internal/payment/provider"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
@@ -44,7 +45,7 @@ func enabledVisibleMethodsForProvider(providerKey, supportedTypes string) []stri
 				break
 			}
 		}
-	case payment.TypeEasyPay:
+	case payment.TypeManual, payment.TypeEasyPay:
 		for _, supportedType := range splitTypes(supportedTypes) {
 			addMethod(supportedType)
 		}
@@ -189,6 +190,29 @@ func (s *PaymentConfigService) resolveVisibleMethodProviderKey(
 	method string,
 	matching []*dbent.PaymentProviderInstance,
 ) (string, error) {
+	configuredKey, sourceErr := s.resolveVisibleMethodSourceProviderKey(ctx, method)
+	hasManual := configuredKey == payment.TypeManual
+	for _, inst := range matching {
+		if inst.ProviderKey == payment.TypeManual {
+			hasManual = true
+			break
+		}
+	}
+	if hasManual {
+		if sourceErr != nil {
+			return "", sourceErr
+		}
+		if configuredKey == "" || selectVisibleMethodInstanceByProviderKey(matching, configuredKey) == nil {
+			return "", infraerrors.BadRequest("INVALID_PAYMENT_VISIBLE_METHOD_SOURCE", "manual payments require an explicitly configured source with a valid enabled provider instance")
+		}
+		if configuredKey == payment.TypeManual {
+			enabled, err := s.settingRepo.GetValue(ctx, visibleMethodEnabledSettingKey(method))
+			if err != nil || enabled != "true" {
+				return "", infraerrors.BadRequest("PAYMENT_METHOD_DISABLED", "manual payment source is not enabled")
+			}
+		}
+		return configuredKey, nil
+	}
 	switch providerKeys := distinctVisibleMethodProviderKeys(matching); len(providerKeys) {
 	case 0:
 		return "", nil
@@ -234,6 +258,7 @@ func (s *PaymentConfigService) resolveEnabledVisibleMethodInstance(
 		return nil, fmt.Errorf("query enabled payment providers: %w", err)
 	}
 
+	instances = s.filterValidManualPaymentInstances(instances)
 	matching := filterEnabledVisibleMethodInstances(instances, method)
 	providerKey, err := s.resolveVisibleMethodProviderKey(ctx, method, matching)
 	if err != nil {
@@ -260,4 +285,19 @@ func (s *PaymentConfigService) UsesOfficialAlipayVisibleMethod(ctx context.Conte
 
 func isOfficialAlipayProviderInstance(instance *dbent.PaymentProviderInstance) bool {
 	return instance != nil && strings.EqualFold(strings.TrimSpace(instance.ProviderKey), payment.TypeAlipay)
+}
+
+// Never advertise an invalid manual collection channel, including legacy rows.
+func (s *PaymentConfigService) filterValidManualPaymentInstances(instances []*dbent.PaymentProviderInstance) []*dbent.PaymentProviderInstance {
+	valid := make([]*dbent.PaymentProviderInstance, 0, len(instances))
+	for _, inst := range instances {
+		if inst.ProviderKey == payment.TypeManual {
+			cfg, err := s.decryptConfig(inst.Config)
+			if err != nil || provider.ValidateManualConfig(cfg, inst.SupportedTypes) != nil {
+				continue
+			}
+		}
+		valid = append(valid, inst)
+	}
+	return valid
 }

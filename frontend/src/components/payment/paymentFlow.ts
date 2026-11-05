@@ -21,6 +21,7 @@ const VISIBLE_METHOD_ALIASES = {
 export type VisiblePaymentMethod = 'alipay' | 'wxpay' | 'stripe' | 'airwallex'
 export type StripeVisibleMethod = 'alipay' | 'wechat_pay'
 export type PaymentLaunchKind =
+  | 'manual_route'
   | 'qr_waiting'
   | 'alipay_deep_link'
   | 'redirect_waiting'
@@ -74,6 +75,15 @@ export interface PaymentLaunchDecision {
   stripeMethod?: StripeVisibleMethod
   oauth?: WechatOAuthInfo
   jsapi?: WechatJSAPIPayload
+  manualPath?: string
+}
+
+export function filterPaymentMethodsForOrder<T extends Record<string, MethodLimit>>(
+  methods: T,
+  orderType: OrderType,
+): T {
+  if (orderType !== 'subscription') return methods
+  return Object.fromEntries(Object.entries(methods).filter(([, limit]) => !limit.is_manual)) as T
 }
 
 export interface BuildCreateOrderPayloadInput {
@@ -150,6 +160,19 @@ export function decidePaymentLaunch(
   result: CreateOrderFlowResult,
   context: PaymentLaunchContext,
 ): PaymentLaunchDecision {
+  if (result.result_type === 'manual_required' || result.is_manual === true) {
+    const paymentState = createPaymentRecoverySnapshot({
+      orderId: result.order_id,
+      amount: result.amount,
+      qrCode: '',
+      expiresAt: result.expires_at || '',
+      paymentType: context.visibleMethod,
+      payUrl: '', outTradeNo: result.out_trade_no || '', clientSecret: '', intentId: '',
+      currency: result.currency || 'CNY', countryCode: '', paymentEnv: '', payAmount: result.pay_amount,
+      orderType: context.orderType, paymentMode: '', resumeToken: '',
+    }, context.now)
+    return { kind: 'manual_route', paymentState, recovery: paymentState, manualPath: `/payment/manual/${result.order_id}` }
+  }
   const visibleMethod = normalizeVisibleMethod(context.visibleMethod) || context.visibleMethod
   const baseState = createPaymentRecoverySnapshot({
     orderId: result.order_id,

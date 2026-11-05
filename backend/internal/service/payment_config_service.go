@@ -131,6 +131,7 @@ type UpdatePaymentConfigRequest struct {
 
 // MethodLimits holds per-payment-type limits.
 type MethodLimits struct {
+	IsManual    bool    `json:"is_manual,omitempty"`
 	PaymentType string  `json:"payment_type"`
 	DisplayName string  `json:"display_name,omitempty"`
 	Currency    string  `json:"currency"`
@@ -555,6 +556,12 @@ func buildVisibleMethodSourceAvailability(instances []*dbent.PaymentProviderInst
 		case payment.TypeWxpay:
 			if inst.SupportedTypes == "" || payment.InstanceSupportsType(inst.SupportedTypes, payment.TypeWxpay) || payment.InstanceSupportsType(inst.SupportedTypes, payment.TypeWxpayDirect) {
 				available[VisibleMethodSourceOfficialWechat] = true
+			}
+		case payment.TypeManual:
+			for _, method := range splitTypes(inst.SupportedTypes) {
+				if method == payment.TypeAlipay || method == payment.TypeWxpay {
+					available["manual_"+method] = true
+				}
 			}
 		case payment.TypeEasyPay:
 			for _, supportedType := range splitTypes(inst.SupportedTypes) {

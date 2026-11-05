@@ -22,6 +22,8 @@ import (
 
 const (
 	OrderStatusPending           = payment.OrderStatusPending
+	OrderStatusPendingReview     = payment.OrderStatusPendingReview
+	OrderStatusRejected          = payment.OrderStatusRejected
 	OrderStatusPaid              = payment.OrderStatusPaid
 	OrderStatusRecharging        = payment.OrderStatusRecharging
 	OrderStatusCompleted         = payment.OrderStatusCompleted
@@ -88,6 +90,8 @@ type CreateOrderRequest struct {
 }
 
 type CreateOrderResponse struct {
+	QRCodeImg                     string                          `json:"qr_code_img,omitempty"`
+	IsManual                      bool                            `json:"is_manual,omitempty"`
 	OrderID                       int64                           `json:"order_id"`
 	Amount                        float64                         `json:"amount"`
 	PayAmount                     float64                         `json:"pay_amount"`

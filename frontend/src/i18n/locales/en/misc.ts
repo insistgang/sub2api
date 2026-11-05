@@ -288,6 +288,19 @@ export default {
   // Payment System
   payment: {
     title: 'Recharge / Subscription',
+    manual: {
+      title: 'QR recharge', view: 'View payment details', payee: 'Payee', qrAlt: 'Personal payment QR code',
+      enlargeQr: 'Enlarge QR', viewOriginalQr: 'Original QR image', saveQr: 'Save QR image',
+      payAmount: 'Amount paid', creditedAmount: 'Amount credited', reportInstructions: 'After transferring, submit the payment details. An administrator will verify receipt before crediting your balance. Submission does not mean payment succeeded.',
+      transactionNo: 'Transfer reference (optional)', note: 'Note (optional)', submit: 'Submit payment details',
+      awaitingReview: 'Payment details submitted. Waiting for administrator verification; your balance will not change until verification is complete.',
+      expiredOriginalQuoteWarning: 'This order has expired. If you already transferred, you may still report it. The original quote is recorded; confirm the actual amount before submitting.',
+      rejected: 'The reported payment was not verified.', submittedReference: 'Submitted transfer reference', submittedAt: 'Submitted at',
+      submitAmbiguous: 'The submission result is unclear. Order status was reloaded. Do not transfer again.',
+      verifyTransactionNo: 'Verified transfer reference', actualReceivedAmount: 'Amount actually received', reviewNote: 'Review note',
+      confirmReceived: 'I verified that the received amount matches the order', approveAndCredit: 'Confirm receipt and credit',
+      rejectReason: 'Rejection reason', reject: 'Reject',
+    },
     amountLabel: 'Amount',
     paymentAmount: 'Payment Amount',
     creditedBalance: 'Credited Balance',
@@ -318,6 +331,8 @@ export default {
     },
     status: {
       pending: 'Pending',
+      pending_review: 'Under Review',
+      rejected: 'Rejected',
       paid: 'Paid',
       recharging: 'Recharging',
       completed: 'Completed',
@@ -512,6 +527,7 @@ export default {
       allPaymentTypes: 'All Payment Types',
       allOrderTypes: 'All Order Types',
       orderDetail: 'Order Detail',
+      orderCredited: 'Payment verified and credited to the user balance',
       orderType: 'Order Type',
       orders: 'Orders',
       balanceOrder: 'Balance Top-Up',

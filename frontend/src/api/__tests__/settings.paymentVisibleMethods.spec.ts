@@ -14,6 +14,8 @@ describe('admin settings payment visible method helpers', () => {
     expect(normalizePaymentVisibleMethodSource('wxpay', 'official')).toBe('official_wxpay')
     expect(normalizePaymentVisibleMethodSource('wxpay', 'wechat')).toBe('official_wxpay')
     expect(normalizePaymentVisibleMethodSource('wxpay', 'easypay')).toBe('easypay_wxpay')
+    expect(normalizePaymentVisibleMethodSource('alipay', 'manual_alipay')).toBe('manual_alipay')
+    expect(normalizePaymentVisibleMethodSource('wxpay', 'manual_wxpay')).toBe('manual_wxpay')
   })
 
   it('rejects unknown or cross-method source values', () => {
@@ -40,6 +42,11 @@ describe('admin settings payment visible method helpers', () => {
         labelZh: '易支付支付宝',
         labelEn: 'EasyPay Alipay',
       },
+      {
+        value: 'manual_alipay',
+        labelZh: '个人支付宝收款码',
+        labelEn: 'Personal Alipay QR',
+      },
     ])
 
     expect(getPaymentVisibleMethodSourceOptions('wxpay')).toEqual([
@@ -58,6 +65,22 @@ describe('admin settings payment visible method helpers', () => {
         labelZh: '易支付微信',
         labelEn: 'EasyPay WeChat Pay',
       },
+      {
+        value: 'manual_wxpay',
+        labelZh: '个人微信收款码',
+        labelEn: 'Personal WeChat QR',
+      },
     ])
+
+    expect(getPaymentVisibleMethodSourceOptions('alipay').map(option => option.value)).toContain('manual_alipay')
+  })
+
+  it('offers manual QR sources only for their matching visible method', () => {
+    expect(normalizePaymentVisibleMethodSource('alipay', 'manual_alipay')).toBe('manual_alipay')
+    expect(normalizePaymentVisibleMethodSource('wxpay', 'manual_wxpay')).toBe('manual_wxpay')
+    expect(normalizePaymentVisibleMethodSource('alipay', 'manual_wxpay')).toBe('')
+    expect(normalizePaymentVisibleMethodSource('wxpay', 'manual_alipay')).toBe('')
+    expect(getPaymentVisibleMethodSourceOptions('alipay').map(option => option.value)).toContain('manual_alipay')
+    expect(getPaymentVisibleMethodSourceOptions('wxpay').map(option => option.value)).toContain('manual_wxpay')
   })
 })

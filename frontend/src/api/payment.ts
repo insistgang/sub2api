@@ -11,7 +11,8 @@ import type {
   CheckoutInfoResponse,
   CreateOrderRequest,
   CreateOrderResult,
-  PaymentOrder
+  PaymentOrder,
+  ManualOrderDetails
 } from '@/types/payment'
 import type { BasePaginationResponse } from '@/types'
 
@@ -57,6 +58,14 @@ export const paymentAPI = {
   /** Get a specific order by ID */
   getOrder(id: number) {
     return apiClient.get<PaymentOrder>(`/payment/orders/${id}`)
+  },
+
+  getManualOrder(id: number) {
+    return apiClient.get<ManualOrderDetails>(`/payment/orders/${id}/manual`)
+  },
+
+  submitManualOrder(id: number, data: { transaction_no?: string; note?: string }) {
+    return apiClient.post<ManualOrderDetails>(`/payment/orders/${id}/manual/submit`, data)
   },
 
   /** Cancel a pending order */

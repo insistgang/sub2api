@@ -296,40 +296,54 @@
 
       <!-- Usage data from API -->
       <div v-else-if="hasAntigravityQuotaFromAPI" class="space-y-1">
-        <!-- Gemini 3 Pro -->
+        <!-- Gemini 4 Argon -->
         <UsageProgressBar
-          v-if="antigravity3ProUsageFromAPI !== null"
-          :label="t('admin.accounts.usageWindow.gemini3Pro')"
-          :utilization="antigravity3ProUsageFromAPI.utilization"
-          :resets-at="antigravity3ProUsageFromAPI.resetTime"
+          v-if="antigravity4ArgonUsageFromAPI !== null"
+          :label="t('admin.accounts.usageWindow.gemini4Argon')"
+          label-width="auto"
+          :utilization="antigravity4ArgonUsageFromAPI.utilization"
+          :resets-at="antigravity4ArgonUsageFromAPI.resetTime"
           color="indigo"
         />
 
-        <!-- Gemini 3 Flash -->
+        <!-- Gemini 3.8 Flash -->
         <UsageProgressBar
           v-if="antigravity3FlashUsageFromAPI !== null"
           :label="t('admin.accounts.usageWindow.gemini3Flash')"
+          label-width="auto"
           :utilization="antigravity3FlashUsageFromAPI.utilization"
           :resets-at="antigravity3FlashUsageFromAPI.resetTime"
           color="emerald"
         />
 
-        <!-- Gemini 3 Image -->
+        <!-- Claude (Cloud) -->
+        <UsageProgressBar
+          v-if="antigravityClaudeUsageFromAPI !== null"
+          :label="t('admin.accounts.usageWindow.claude')"
+          label-width="auto"
+          :utilization="antigravityClaudeUsageFromAPI.utilization"
+          :resets-at="antigravityClaudeUsageFromAPI.resetTime"
+          color="amber"
+        />
+
+        <!-- Gemini 3 Image (保持兼容) -->
         <UsageProgressBar
           v-if="antigravity3ImageUsageFromAPI !== null"
           :label="t('admin.accounts.usageWindow.gemini3Image')"
+          label-width="auto"
           :utilization="antigravity3ImageUsageFromAPI.utilization"
           :resets-at="antigravity3ImageUsageFromAPI.resetTime"
           color="purple"
         />
 
-        <!-- Claude -->
+        <!-- Gemini 3 Pro (兜底兼容旧数据) -->
         <UsageProgressBar
-          v-if="antigravityClaudeUsageFromAPI !== null"
-          :label="t('admin.accounts.usageWindow.claude')"
-          :utilization="antigravityClaudeUsageFromAPI.utilization"
-          :resets-at="antigravityClaudeUsageFromAPI.resetTime"
-          color="amber"
+          v-if="antigravity3ProUsageFromAPI !== null && antigravity4ArgonUsageFromAPI === null"
+          :label="t('admin.accounts.usageWindow.gemini3Pro')"
+          label-width="auto"
+          :utilization="antigravity3ProUsageFromAPI.utilization"
+          :resets-at="antigravity3ProUsageFromAPI.resetTime"
+          color="indigo"
         />
 
         <div v-if="aiCreditsDisplay" class="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
@@ -920,20 +934,25 @@ const hasAntigravityQuotaFromAPI = computed(() => {
   return usageInfo.value?.antigravity_quota && Object.keys(usageInfo.value.antigravity_quota).length > 0
 })
 
-// 从 API 配额数据中获取使用率（多模型取最高使用率）
+// 从 API 配额数据中获取使用率（多模型或前缀匹配，取最高使用率）
 const getAntigravityUsageFromAPI = (
-  modelNames: string[]
+  modelNamesOrPrefixes: string[]
 ): AntigravityUsageResult | null => {
   const quota = usageInfo.value?.antigravity_quota
   if (!quota) return null
 
   let maxUtilization = 0
   let earliestReset: string | null = null
+  let matched = false
 
-  for (const model of modelNames) {
-    const modelQuota = quota[model]
+  for (const [model, modelQuota] of Object.entries(quota)) {
     if (!modelQuota) continue
+    const isMatch = modelNamesOrPrefixes.some(
+      (pattern) => model === pattern || model.startsWith(pattern)
+    )
+    if (!isMatch) continue
 
+    matched = true
     if (modelQuota.utilization > maxUtilization) {
       maxUtilization = modelQuota.utilization
     }
@@ -944,11 +963,7 @@ const getAntigravityUsageFromAPI = (
     }
   }
 
-  // 如果没有找到任何匹配的模型
-  if (maxUtilization === 0 && earliestReset === null) {
-    const hasAnyData = modelNames.some((m) => quota[m])
-    if (!hasAnyData) return null
-  }
+  if (!matched) return null
 
   return {
     utilization: maxUtilization,
@@ -956,13 +971,26 @@ const getAntigravityUsageFromAPI = (
   }
 }
 
-// Gemini 3 Pro from API
+// Gemini 4 Argon from API
+const antigravity4ArgonUsageFromAPI = computed(() =>
+  getAntigravityUsageFromAPI(['gemini-4-argon'])
+)
+
+// Gemini 3 Pro from API (legacy fallback)
 const antigravity3ProUsageFromAPI = computed(() =>
   getAntigravityUsageFromAPI(['gemini-3-pro-low', 'gemini-3-pro-high', 'gemini-3-pro-preview'])
 )
 
-// Gemini 3 Flash from API
-const antigravity3FlashUsageFromAPI = computed(() => getAntigravityUsageFromAPI(['gemini-3-flash']))
+// Gemini 3.8 Flash from API
+const antigravity3FlashUsageFromAPI = computed(() =>
+  getAntigravityUsageFromAPI([
+    'gemini-3.8-flash',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+    'gemini-3-flash',
+    'gemini-2.5-flash',
+  ])
+)
 
 // Gemini Image from API
 const antigravity3ImageUsageFromAPI = computed(() =>
@@ -972,6 +1000,7 @@ const antigravity3ImageUsageFromAPI = computed(() =>
 // Claude from API (all Claude model variants)
 const antigravityClaudeUsageFromAPI = computed(() =>
   getAntigravityUsageFromAPI([
+    'claude-',
     'claude-fable-5-1',
     'claude-fable-5',
     'claude-sonnet-4-5', 'claude-opus-4-5-thinking',

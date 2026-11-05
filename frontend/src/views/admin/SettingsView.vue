@@ -8067,6 +8067,7 @@
                       t("admin.settings.payment.balanceRechargeMultiplier")
                     }}</label>
                     <input
+                      data-testid="payment-balance-recharge-multiplier"
                       :value="form.payment_balance_recharge_multiplier || ''"
                       @input="
                         form.payment_balance_recharge_multiplier =
@@ -8075,7 +8076,7 @@
                           ) || 1
                       "
                       type="number"
-                      step="0.01"
+                      step="any"
                       min="0.01"
                       class="input"
                     />
@@ -8414,6 +8415,28 @@
                       </svg>
                     </a>
                   </p>
+                </div>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div class="rounded-lg border border-gray-200 p-3 dark:border-dark-600">
+                    <label class="flex items-center justify-between gap-3">
+                      <span class="text-sm font-medium">{{ t('admin.settings.paymentVisibleMethods.methodLabel', { title: t('payment.methods.alipay') }) }}</span>
+                      <input v-model="form.payment_visible_method_alipay_enabled" type="checkbox" class="rounded border-gray-300" />
+                    </label>
+                    <label class="mt-3 block"><span class="input-label">{{ t('admin.settings.paymentVisibleMethods.sourceLabel') }}</span>
+                      <Select v-model="form.payment_visible_method_alipay_source" :options="paymentVisibleSourceOptions('alipay')" class="mt-1" :disabled="!form.payment_visible_method_alipay_enabled" />
+                    </label>
+                    <p class="mt-2 text-xs text-gray-500">{{ t('admin.settings.paymentVisibleMethods.methodHint') }}</p>
+                  </div>
+                  <div class="rounded-lg border border-gray-200 p-3 dark:border-dark-600">
+                    <label class="flex items-center justify-between gap-3">
+                      <span class="text-sm font-medium">{{ t('admin.settings.paymentVisibleMethods.methodLabel', { title: t('payment.methods.wxpay') }) }}</span>
+                      <input v-model="form.payment_visible_method_wxpay_enabled" type="checkbox" class="rounded border-gray-300" />
+                    </label>
+                    <label class="mt-3 block"><span class="input-label">{{ t('admin.settings.paymentVisibleMethods.sourceLabel') }}</span>
+                      <Select v-model="form.payment_visible_method_wxpay_source" :options="paymentVisibleSourceOptions('wxpay')" class="mt-1" :disabled="!form.payment_visible_method_wxpay_enabled" />
+                    </label>
+                    <p class="mt-2 text-xs text-gray-500">{{ t('admin.settings.paymentVisibleMethods.methodHint') }}</p>
+                  </div>
                 </div>
                 <!-- Row 5: Help image + text -->
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -8991,6 +9014,7 @@ import {
   deriveWeChatConnectStoredMode,
   normalizeDefaultSubscriptionSettings,
   resolveWeChatConnectModeCapabilities,
+  getPaymentVisibleMethodSourceOptions,
 } from "@/api/admin/settings";
 import type {
   AuthSourceDefaultsState,
@@ -9004,6 +9028,7 @@ import type {
   WebSearchEmulationConfig,
   WebSearchProviderConfig,
   WebSearchTestResult,
+  PaymentVisibleMethod,
 } from "@/api/admin/settings";
 import type {
   AdminGroup,
@@ -9053,7 +9078,6 @@ import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSi
 import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiError";
 import { useAppStore } from "@/stores";
 import { useAdminSettingsStore } from "@/stores/adminSettings";
-import { normalizeVisibleMethod } from "@/components/payment/paymentFlow";
 import {
   isRegistrationEmailSuffixDomainValid,
   normalizeRegistrationEmailSuffixDomain,
@@ -9834,6 +9858,10 @@ const form = reactive<SettingsForm>({
   payment_recharge_bonus_mode: "bonus",
   payment_recharge_bonus_notice: "",
   payment_enabled_types: [],
+  payment_visible_method_alipay_enabled: false,
+  payment_visible_method_wxpay_enabled: false,
+  payment_visible_method_alipay_source: "",
+  payment_visible_method_wxpay_source: "",
   payment_help_image_url: "",
   payment_help_text: "",
   payment_product_name_prefix: "",
@@ -11349,6 +11377,19 @@ async function saveSettings() {
       return;
     }
 
+    const visibleMethodSettings = [
+      { method: "alipay", enabled: form.payment_visible_method_alipay_enabled, source: form.payment_visible_method_alipay_source },
+      { method: "wxpay", enabled: form.payment_visible_method_wxpay_enabled, source: form.payment_visible_method_wxpay_source },
+    ] as const;
+    for (const item of visibleMethodSettings) {
+      if (item.enabled && !item.source) {
+        appStore.showError(t("admin.settings.paymentVisibleMethods.sourceRequiredError", {
+          title: t(`payment.methods.${item.method}`),
+        }));
+        return;
+      }
+    }
+
     form.table_default_page_size = normalizedTableDefaultPageSize;
     form.table_page_size_options = normalizedTablePageSizeOptions;
 
@@ -11723,6 +11764,10 @@ async function saveSettings() {
       payment_recharge_bonus_mode: form.payment_recharge_bonus_mode,
       payment_recharge_bonus_notice: form.payment_recharge_bonus_notice,
       payment_enabled_types: form.payment_enabled_types,
+      payment_visible_method_alipay_enabled: form.payment_visible_method_alipay_enabled,
+      payment_visible_method_wxpay_enabled: form.payment_visible_method_wxpay_enabled,
+      payment_visible_method_alipay_source: form.payment_visible_method_alipay_source,
+      payment_visible_method_wxpay_source: form.payment_visible_method_wxpay_source,
       payment_load_balance_strategy: form.payment_load_balance_strategy,
       payment_product_name_prefix: form.payment_product_name_prefix,
       payment_product_name_suffix: form.payment_product_name_suffix,
@@ -12559,6 +12604,7 @@ async function saveBetaPolicySettings() {
 // ==================== Provider Management ====================
 
 const allPaymentTypes = computed(() => [
+  { value: "manual", label: t("admin.settings.payment.providerManual") },
   { value: "easypay", label: t("payment.methods.easypay") },
   { value: "alipay", label: t("payment.methods.alipay") },
   { value: "wxpay", label: t("payment.methods.wxpay") },
@@ -12616,12 +12662,20 @@ const providerDialogRef = ref<InstanceType<
 > | null>(null);
 
 const providerKeyOptions = computed(() => [
+  { value: "manual", label: t("admin.settings.payment.providerManual") },
   { value: "easypay", label: t("admin.settings.payment.providerEasypay") },
   { value: "alipay", label: t("admin.settings.payment.providerAlipay") },
   { value: "wxpay", label: t("admin.settings.payment.providerWxpay") },
   { value: "stripe", label: t("admin.settings.payment.providerStripe") },
   { value: "airwallex", label: t("admin.settings.payment.providerAirwallex") },
 ]);
+
+function paymentVisibleSourceOptions(method: PaymentVisibleMethod): SelectOption[] {
+  return getPaymentVisibleMethodSourceOptions(method).map((option) => ({
+    value: option.value,
+    label: locale.value.startsWith("zh") ? option.labelZh : option.labelEn,
+  }));
+}
 
 const enabledProviderKeyOptions = computed(() => {
   const enabled = form.payment_enabled_types;
@@ -12664,76 +12718,9 @@ type ProviderEnablementCandidate = Pick<
   "id" | "provider_key" | "supported_types" | "enabled" | "name"
 >;
 
-function getProviderVisibleMethods(
-  provider: ProviderEnablementCandidate,
-): Array<"alipay" | "wxpay"> {
-  if (!provider.enabled) {
-    return [];
-  }
-
-  const supportedTypes = Array.isArray(provider.supported_types)
-    ? provider.supported_types
-    : [];
-  const methods = new Set<"alipay" | "wxpay">();
-  const addMethod = (type: string) => {
-    const method = normalizeVisibleMethod(type);
-    if (method === "alipay" || method === "wxpay") {
-      methods.add(method);
-    }
-  };
-
-  if (provider.provider_key === "alipay") {
-    if (supportedTypes.length === 0) {
-      methods.add("alipay");
-    } else {
-      supportedTypes.forEach((type) => {
-        if (normalizeVisibleMethod(type) === "alipay") {
-          methods.add("alipay");
-        }
-      });
-    }
-  } else if (provider.provider_key === "wxpay") {
-    if (supportedTypes.length === 0) {
-      methods.add("wxpay");
-    } else {
-      supportedTypes.forEach((type) => {
-        if (normalizeVisibleMethod(type) === "wxpay") {
-          methods.add("wxpay");
-        }
-      });
-    }
-  } else if (provider.provider_key === "easypay") {
-    supportedTypes.forEach(addMethod);
-  }
-
-  return Array.from(methods);
-}
-
 function findProviderEnablementConflict(
-  candidate: ProviderEnablementCandidate,
+  _candidate: ProviderEnablementCandidate,
 ): { method: "alipay" | "wxpay"; conflicting: ProviderInstance } | null {
-  const claimedMethods = getProviderVisibleMethods(candidate);
-  if (claimedMethods.length === 0) {
-    return null;
-  }
-
-  for (const other of providers.value) {
-    if (other.id === candidate.id || !other.enabled) {
-      continue;
-    }
-
-    const otherMethods = getProviderVisibleMethods(other);
-    const matchedMethod = claimedMethods.find((method) =>
-      otherMethods.includes(method),
-    );
-    if (matchedMethod) {
-      return {
-        method: matchedMethod,
-        conflicting: other,
-      };
-    }
-  }
-
   return null;
 }
 

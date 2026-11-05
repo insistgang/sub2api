@@ -501,8 +501,8 @@ const baseSettingsResponse = {
   payment_cancel_rate_limit_window: 1,
   payment_cancel_rate_limit_unit: "day",
   payment_cancel_rate_limit_window_mode: "rolling",
-  payment_visible_method_alipay_source: "alipay_direct",
-  payment_visible_method_wxpay_source: "invalid-source",
+  payment_visible_method_alipay_source: "official_alipay",
+  payment_visible_method_wxpay_source: "official_wxpay",
   payment_visible_method_alipay_enabled: true,
   payment_visible_method_wxpay_enabled: true,
   openai_low_upstream_rate_priority_enabled: false,
@@ -803,14 +803,53 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(showSuccess).toHaveBeenCalled();
   });
 
-  it("does not render legacy visible payment method controls", async () => {
+  it("renders visible method controls and persists manual QR sources", async () => {
     const wrapper = mountView();
 
     await flushPromises();
     await openPaymentTab(wrapper);
 
-    expect(wrapper.text()).not.toContain("可见方式");
-    expect(wrapper.text()).not.toContain("支付来源");
+    expect(wrapper.text()).toContain("可见方式");
+    expect(wrapper.text()).toContain("支付来源");
+
+    const alipaySource = wrapper
+      .findAll("select.select-stub")
+      .find((select) => select.find('option[value="manual_alipay"]').exists());
+    const wxpaySource = wrapper
+      .findAll("select.select-stub")
+      .find((select) => select.find('option[value="manual_wxpay"]').exists());
+    expect(alipaySource).toBeDefined();
+    expect(wxpaySource).toBeDefined();
+    await alipaySource!.setValue("manual_alipay");
+    await wxpaySource!.setValue("manual_wxpay");
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(expect.objectContaining({
+      payment_visible_method_alipay_enabled: true,
+      payment_visible_method_alipay_source: "manual_alipay",
+      payment_visible_method_wxpay_enabled: true,
+      payment_visible_method_wxpay_source: "manual_wxpay",
+    }));
+  });
+
+  it("requires an explicit source before enabling a visible payment method", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      payment_visible_method_alipay_enabled: true,
+      payment_visible_method_alipay_source: "",
+      payment_visible_method_wxpay_enabled: false,
+      payment_visible_method_wxpay_source: "",
+    });
+    const wrapper = mountView();
+
+    await flushPromises();
+    await openPaymentTab(wrapper);
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).not.toHaveBeenCalled();
+    expect(showError).toHaveBeenCalledWith(expect.stringContaining("请先选择支付来源"));
   });
 
   it("shows valid passkey RP configuration and persists the sign-in toggle", async () => {
@@ -1182,7 +1221,7 @@ describe("admin SettingsView payment visible method controls", () => {
     }
   });
 
-  it("does not submit legacy visible payment method settings", async () => {
+  it("normalizes and submits visible payment method settings", async () => {
     const wrapper = mountView();
 
     await flushPromises();
@@ -1192,10 +1231,28 @@ describe("admin SettingsView payment visible method controls", () => {
 
     expect(updateSettings).toHaveBeenCalledTimes(1);
     const payload = updateSettings.mock.calls[0]?.[0];
-    expect(payload).not.toHaveProperty("payment_visible_method_alipay_source");
-    expect(payload).not.toHaveProperty("payment_visible_method_wxpay_source");
-    expect(payload).not.toHaveProperty("payment_visible_method_alipay_enabled");
-    expect(payload).not.toHaveProperty("payment_visible_method_wxpay_enabled");
+    expect(payload).toMatchObject({
+      payment_visible_method_alipay_source: "official_alipay",
+      payment_visible_method_wxpay_source: "official_wxpay",
+      payment_visible_method_alipay_enabled: true,
+      payment_visible_method_wxpay_enabled: true,
+    });
+  });
+
+  it("preserves fractional balance recharge multipliers without step rounding", async () => {
+    const wrapper = mountView();
+
+    await flushPromises();
+    await openPaymentTab(wrapper);
+    const input = wrapper.get('[data-testid="payment-balance-recharge-multiplier"]');
+    expect(input.attributes("step")).toBe("any");
+    await input.setValue("0.142857");
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(expect.objectContaining({
+      payment_balance_recharge_multiplier: 0.142857,
+    }));
   });
 
   it("submits the admin recharge affiliate rebate setting", async () => {

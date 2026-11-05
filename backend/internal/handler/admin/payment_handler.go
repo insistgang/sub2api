@@ -117,6 +117,7 @@ func (h *PaymentHandler) RetryFulfillment(c *gin.Context) {
 }
 
 type AdminPaymentOrderResult struct {
+	IsManual            bool       `json:"is_manual,omitempty"`
 	ID                  int64      `json:"id"`
 	UserID              int64      `json:"user_id"`
 	UserEmail           string     `json:"user_email,omitempty"`
@@ -164,6 +165,9 @@ func sanitizeAdminPaymentOrdersForResponse(orders []*dbent.PaymentOrder) []*Admi
 	out := make([]*AdminPaymentOrderResult, 0, len(orders))
 	for _, order := range orders {
 		if item := sanitizeAdminPaymentOrderForResponse(order); item != nil {
+			if item.IsManual {
+				item.QRCodeImg = nil
+			}
 			out = append(out, item)
 		}
 	}
@@ -175,6 +179,7 @@ func sanitizeAdminPaymentOrderForResponse(order *dbent.PaymentOrder) *AdminPayme
 		return nil
 	}
 	return &AdminPaymentOrderResult{
+		IsManual:            service.IsManualPaymentOrder(order),
 		ID:                  order.ID,
 		UserID:              order.UserID,
 		UserEmail:           order.UserEmail,

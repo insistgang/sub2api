@@ -109,6 +109,9 @@ func (s *PaymentService) confirmPayment(ctx context.Context, oid int64, tradeNo 
 		slog.Error("order not found", "orderID", oid)
 		return nil
 	}
+	if IsManualPaymentOrder(o) {
+		return infraerrors.BadRequest("MANUAL_REVIEW_REQUIRED", "manual payments require administrator receipt approval")
+	}
 	instanceProviderKey := ""
 	if inst, instErr := s.getOrderProviderInstance(ctx, o); instErr == nil && inst != nil {
 		instanceProviderKey = inst.ProviderKey
@@ -284,6 +287,9 @@ func (s *PaymentService) ExecuteBalanceFulfillment(ctx context.Context, oid int6
 	o, err := s.entClient.PaymentOrder.Get(ctx, oid)
 	if err != nil {
 		return infraerrors.NotFound("NOT_FOUND", "order not found")
+	}
+	if IsManualPaymentOrder(o) && !manualApproved(o) {
+		return infraerrors.BadRequest("MANUAL_REVIEW_REQUIRED", "manual payments require administrator receipt approval")
 	}
 	if o.OrderType != payment.OrderTypeBalance {
 		return infraerrors.BadRequest("INVALID_ORDER_TYPE", "order is not a balance order")

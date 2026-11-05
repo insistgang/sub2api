@@ -305,6 +305,7 @@ import {
   buildCreateOrderPayload,
   clearPaymentRecoverySnapshot,
   decidePaymentLaunch,
+  filterPaymentMethodsForOrder,
   getVisibleMethods,
   normalizeVisibleMethod,
   readPaymentRecoverySnapshot,
@@ -744,7 +745,8 @@ function subscriptionTotalAmountForCurrency(value: number, currency: string): nu
 // Subscription-specific: method options based on gateway pay amount
 const subMethodOptions = computed<PaymentMethodOption[]>(() => {
   const price = selectedPlan.value?.price ?? 0
-  return enabledMethods.value.map((type) => {
+  const subscriptionMethods = filterPaymentMethodsForOrder(visibleMethods.value, 'subscription')
+  return Object.keys(subscriptionMethods).map((type) => {
     const ml = visibleMethods.value[type]
     const currency = normalizePaymentCurrency(ml?.currency)
     return {
@@ -758,9 +760,16 @@ const subMethodOptions = computed<PaymentMethodOption[]>(() => {
 
 const canSubmitSubscription = computed(() =>
   selectedPlan.value !== null
+    && selectedLimit.value?.is_manual !== true
     && amountFitsMethod(subTotalAmount.value, selectedMethod.value)
     && selectedLimit.value?.available !== false
 )
+
+watch(activeTab, (tab) => {
+  if (tab !== 'subscription' || !visibleMethods.value[selectedMethod.value]?.is_manual) return
+  const available = Object.keys(filterPaymentMethodsForOrder(visibleMethods.value, 'subscription'))
+  if (available.length) selectedMethod.value = available[0]
+})
 
 // Auto-switch to first available method when current selection can't handle the amount
 watch(() => [payBaseAmount.value, selectedMethod.value] as const, ([amt, method]) => {
@@ -900,6 +909,11 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       stripeRouteUrl,
       airwallexRouteUrl,
     })
+
+    if (decision.kind === 'manual_route' && decision.manualPath) {
+      await router.push(decision.manualPath)
+      return
+    }
 
     if (decision.kind === 'wechat_oauth' && decision.oauth?.authorize_url) {
       window.location.href = buildWechatOAuthAuthorizeUrl(decision.oauth.authorize_url, {
@@ -1094,6 +1108,11 @@ async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackCo
       stripePopupUrl: stripeRouteUrl,
       stripeRouteUrl,
     })
+
+    if (decision.kind === 'manual_route' && decision.manualPath) {
+      await router.push(decision.manualPath)
+      return true
+    }
 
     if (decision.kind !== 'qr_waiting' || !decision.paymentState.qrCode) {
       return false
