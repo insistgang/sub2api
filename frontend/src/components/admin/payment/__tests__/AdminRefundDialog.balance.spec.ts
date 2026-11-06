@@ -24,6 +24,17 @@ async function openRefund(overrides: Partial<PaymentOrder> = {}) {
 const warning = 'payment.admin.insufficientBalance'
 
 describe('refund balance warning', () => {
+  it('preserves the internal amount in the refund API payload after CNY entry', async () => {
+    const wrapper = await openRefund({ currency: 'USD', pay_amount: 108 })
+    expect(wrapper.text()).toContain('¥100.00')
+    expect(wrapper.text()).toContain('$108.00')
+    await wrapper.get('input[type="number"]').setValue('20.55')
+    await wrapper.get('textarea').setValue('Customer request')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('confirm')).toEqual([[{
+      amount: 20.55, reason: 'Customer request', deduct_balance: true, force: false,
+    }]])
+  })
   it('compares the available balance with the edited refund amount', async () => {
     const wrapper = await openRefund()
     expect(wrapper.text()).toContain(warning)

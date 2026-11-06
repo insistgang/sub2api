@@ -182,6 +182,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import { useSubscriptionStore } from '@/stores'
+import { usdToCny } from '@/utils/displayCurrency'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import type { UserSubscription } from '@/types'
 import { getExpirationDateRelation } from '@/utils/subscriptionQuota'
@@ -256,9 +257,9 @@ function getProgressWidth(used: number | undefined, limit: number | null | undef
 }
 
 function formatUsage(used: number | undefined, limit: number | null | undefined): string {
-  const usedValue = (used || 0).toFixed(2)
-  const limitValue = limit?.toFixed(2) || '∞'
-  return `$${usedValue}/$${limitValue}`
+  const usedValue = usdToCny(used || 0).toFixed(2)
+  const limitValue = limit == null ? '∞' : usdToCny(limit).toFixed(2)
+  return `¥${usedValue}/¥${limitValue}`
 }
 
 function formatDaysRemaining(expiresAt: string): string {

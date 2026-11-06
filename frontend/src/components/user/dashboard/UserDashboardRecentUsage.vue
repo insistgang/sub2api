@@ -45,6 +45,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateTime } from '@/utils/format'
+import { usdToCny } from '@/utils/displayCurrency'
 import type { UsageLog } from '@/types'
 
 defineProps<{
@@ -52,5 +53,5 @@ defineProps<{
   loading: boolean
 }>()
 const { t } = useI18n()
-const formatCost = (c: number) => c.toFixed(4)
+const formatCost = (c: number) => usdToCny(c).toFixed(4)
 </script>

@@ -130,7 +130,7 @@
 
           <template #cell-value="{ value, row }">
             <span class="text-sm font-medium text-gray-900 dark:text-white">
-              <template v-if="row.type === 'balance'">${{ value.toFixed(2) }}</template>
+              <template v-if="row.type === 'balance'">¥{{ usdToCny(value).toFixed(2) }}</template>
               <template v-else-if="row.type === 'subscription'">
                 {{ row.validity_days || 30 }} {{ t('admin.redeem.days') }}
                 <span v-if="row.group" class="ml-1 text-xs text-gray-500 dark:text-gray-400"
@@ -299,7 +299,7 @@
               <input
                 v-model.number="generateForm.value"
                 type="number"
-                :step="generateForm.type === 'balance' ? '0.01' : '1'"
+                :step="generateForm.type === 'balance' ? 'any' : '1'"
                 :min="generateForm.type === 'balance' ? '0.01' : '1'"
                 required
                 class="input"
@@ -618,6 +618,7 @@ import { useClipboard } from '@/composables/useClipboard'
 import { useTableSelection } from '@/composables/useTableSelection'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { adminAPI } from '@/api/admin'
+import { usdToCny, cnyToUsd } from '@/utils/displayCurrency'
 import {
   formatDateTime,
   getBrowserTimeZone,
@@ -1043,7 +1044,7 @@ const handleGenerateCodes = async () => {
     const result = await adminAPI.redeem.generate(
       generateForm.count,
       generateForm.type,
-      generateForm.value,
+      generateForm.type === 'balance' ? cnyToUsd(generateForm.value) : generateForm.value,
       generateForm.type === 'subscription' ? generateForm.group_id : undefined,
       generateForm.type === 'subscription' ? generateForm.validity_days : undefined,
       expiresInDays

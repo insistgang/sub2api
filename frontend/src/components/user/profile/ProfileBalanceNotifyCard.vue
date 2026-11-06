@@ -33,7 +33,7 @@
               min="0"
               step="0.01"
               class="input flex-1"
-              :placeholder="systemDefaultThreshold > 0 ? `${t('profile.balanceNotify.systemDefault')} ¥${systemDefaultThreshold}` : t('profile.balanceNotify.thresholdPlaceholder')"
+              :placeholder="systemDefaultThreshold > 0 ? `${t('profile.balanceNotify.systemDefault')} ¥${formatThreshold(systemDefaultThreshold)}` : t('profile.balanceNotify.thresholdPlaceholder')"
             />
             <button
               @click="handleThresholdUpdate"
@@ -162,6 +162,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { userAPI } from '@/api'
+import { cnyToUsd, usdToCny } from '@/utils/displayCurrency'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import type { NotifyEmailEntry } from '@/types'
 
@@ -190,7 +191,7 @@ const authStore = useAuthStore()
 const appStore = useAppStore()
 
 const notifyEnabled = ref(props.enabled)
-const customThreshold = ref<number | null>(props.threshold)
+const customThreshold = ref<number | null>(props.threshold == null ? null : usdToCny(props.threshold))
 const emailEntries = ref<NotifyEmailEntry[]>([...props.extraEmails])
 const pendingEmails = ref<PendingEmail[]>([])
 const newEmail = ref('')
@@ -209,8 +210,10 @@ const canAddMore = computed(() => {
   return emailEntries.value.length + pendingEmails.value.length < maxTotalEmails
 })
 
+const formatThreshold = (value: number) => usdToCny(value).toFixed(2)
+
 watch(() => props.enabled, (val) => { notifyEnabled.value = val })
-watch(() => props.threshold, (val) => { customThreshold.value = val })
+watch(() => props.threshold, (val) => { customThreshold.value = val == null ? null : usdToCny(val) })
 watch(() => props.extraEmails, (val) => { emailEntries.value = [...val] })
 
 // When list is empty on mount, pre-fill the add input with user's email
@@ -241,7 +244,7 @@ const handleToggle = async () => {
 const handleThresholdUpdate = async () => {
   savingThreshold.value = true
   try {
-    const threshold = customThreshold.value && customThreshold.value > 0 ? customThreshold.value : 0
+    const threshold = customThreshold.value && customThreshold.value > 0 ? cnyToUsd(customThreshold.value) : 0
     const updated = await userAPI.updateProfile({ balance_notify_threshold: threshold })
     authStore.user = updated
     appStore.showSuccess(t('common.saved'))

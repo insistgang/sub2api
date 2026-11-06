@@ -46,6 +46,7 @@ const DataTableStub = {
     <div>
       <div v-for="row in data" :key="row.id">
         <slot name="cell-user" :row="row" />
+        <div data-test="usage"><slot name="cell-usage" :row="row" /></div>
       </div>
     </div>
   `
@@ -144,6 +145,22 @@ describe('admin subscription users', () => {
       wrapper.unmount()
       vi.useRealTimers()
     }
+  })
+
+  it('shows subscription usage and limits in yuan without changing progress', async () => {
+    listSubscriptions.mockResolvedValue({ items: [{
+      id: 9, user_id: 42, group_id: 3, status: 'active', expires_at: null,
+      daily_usage_usd: 2.5, weekly_usage_usd: 10, monthly_usage_usd: 25,
+      group: { daily_limit_usd: 10, weekly_limit_usd: 50, monthly_limit_usd: 100 },
+    }], total: 1, pages: 1 })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.get('[data-test="usage"]').text()).toContain('¥2.50 / ¥10.00')
+    expect(wrapper.get('[data-test="usage"]').text()).toContain('¥10.00 / ¥50.00')
+    expect(wrapper.get('[data-test="usage"]').text()).toContain('¥25.00 / ¥100.00')
+    expect(wrapper.get('[data-test="usage"]').text()).not.toContain('$')
+    expect(wrapper.findAll('[style]').map((element) => element.attributes('style'))).toContain('width: 25%;')
+    wrapper.unmount()
   })
 
   it.each(['another', ''])('clears the assignment user immediately when input changes to %j', async (keyword) => {

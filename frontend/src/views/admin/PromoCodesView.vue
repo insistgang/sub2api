@@ -76,7 +76,7 @@
 
           <template #cell-bonus_amount="{ value }">
             <span class="text-sm font-medium text-gray-900 dark:text-white">
-              ${{ value.toFixed(2) }}
+              ¥{{ usdToCny(value).toFixed(2) }}
             </span>
           </template>
 
@@ -181,7 +181,7 @@
           <input
             v-model.number="createForm.bonus_amount"
             type="number"
-            step="0.01"
+            step="any"
             min="0"
             required
             class="input"
@@ -256,7 +256,7 @@
           <input
             v-model.number="editForm.bonus_amount"
             type="number"
-            step="0.01"
+            step="any"
             min="0"
             required
             class="input"
@@ -347,7 +347,7 @@
           </div>
           <div class="text-right">
             <span class="text-sm font-medium text-green-600 dark:text-green-400">
-              +${{ usage.bonus_amount.toFixed(2) }}
+              +¥{{ usdToCny(usage.bonus_amount).toFixed(2) }}
             </span>
           </div>
         </div>
@@ -392,6 +392,7 @@ import { useAppStore } from '@/stores/app'
 import { useClipboard } from '@/composables/useClipboard'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { adminAPI } from '@/api/admin'
+import { usdToCny, cnyToUsd } from '@/utils/displayCurrency'
 import { formatDateTime, formatDateTimeLocalInput } from '@/utils/format'
 import type { PromoCode, PromoCodeUsage } from '@/types'
 import type { Column } from '@/components/common/types'
@@ -597,7 +598,7 @@ const handleCreate = async () => {
   try {
     await adminAPI.promo.create({
       code: createForm.code || undefined,
-      bonus_amount: createForm.bonus_amount,
+      bonus_amount: cnyToUsd(createForm.bonus_amount),
       max_uses: createForm.max_uses,
       expires_at: createForm.expires_at_str ? Math.floor(new Date(createForm.expires_at_str).getTime() / 1000) : undefined,
       notes: createForm.notes || undefined
@@ -625,7 +626,7 @@ const resetCreateForm = () => {
 const handleEdit = (code: PromoCode) => {
   editingCode.value = code
   editForm.code = code.code
-  editForm.bonus_amount = code.bonus_amount
+  editForm.bonus_amount = usdToCny(code.bonus_amount)
   editForm.max_uses = code.max_uses
   editForm.status = code.status
   editForm.expires_at_str = code.expires_at
@@ -647,7 +648,7 @@ const handleUpdate = async () => {
   try {
     await adminAPI.promo.update(editingCode.value.id, {
       code: editForm.code,
-      bonus_amount: editForm.bonus_amount,
+      bonus_amount: cnyToUsd(editForm.bonus_amount),
       max_uses: editForm.max_uses,
       status: editForm.status,
       expires_at: editForm.expires_at_str ? Math.floor(new Date(editForm.expires_at_str).getTime() / 1000) : 0,

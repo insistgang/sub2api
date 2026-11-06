@@ -149,8 +149,9 @@ import type { UserAffiliateDetail } from '@/types'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useClipboard } from '@/composables/useClipboard'
-import { formatCurrency, formatDateTime } from '@/utils/format'
+import { formatDateTime } from '@/utils/format'
 import { extractApiErrorMessage } from '@/utils/apiError'
+import { usdToCny } from '@/utils/displayCurrency'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -177,6 +178,10 @@ const formattedRebateRate = computed(() => {
 
 function formatCount(value: number): string {
   return value.toLocaleString()
+}
+
+function formatCurrency(value: number): string {
+  return `¥${usdToCny(value).toFixed(2)}`
 }
 
 async function loadAffiliateDetail(silent = false): Promise<void> {

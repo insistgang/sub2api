@@ -73,6 +73,14 @@ describe('ModelDistributionChart', () => {
     },
   ]
 
+  it('uses CNY for model cost cells and chart tooltip', () => {
+    const wrapper = mount(ModelDistributionChart, { props: { modelStats, metric: 'actual_cost', enableBreakdown: false }, global: { stubs: { LoadingSpinner: true } } })
+    expect(wrapper.text()).toContain('¥0.200')
+    expect(wrapper.text()).not.toContain('$')
+    const options = (wrapper.vm as any).$?.setupState.doughnutOptions
+    expect(options.plugins.tooltip.callbacks.label({ label: 'model-a', raw: 0.2, dataset: { data: [0.2, 1.4] } })).toBe('model-a: ¥0.200 (12.5%)')
+  })
+
   it('uses total_tokens and token ordering by default', () => {
     const wrapper = mount(ModelDistributionChart, {
       props: {
@@ -129,7 +137,7 @@ describe('ModelDistributionChart', () => {
       raw: 1.4,
       dataset: { data: [1.4, 0.2] },
     })
-    expect(label).toBe('model-b: $1.40 (87.5%)')
+    expect(label).toBe('model-b: ¥1.40 (87.5%)')
   })
 
   it('can hide account cost for user usage stats without account_cost', () => {
@@ -196,6 +204,6 @@ describe('ModelDistributionChart', () => {
     expect(rows[3].text()).toContain('Others')
     expect(rows[3].text()).toContain('4')
     expect(rows[3].text()).toContain('400')
-    expect(rows[3].text()).toContain('$10.00')
+    expect(rows[3].text()).toContain('¥10.00')
   })
 })

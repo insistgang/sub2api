@@ -22,7 +22,7 @@
 
         <div v-if="details" class="grid gap-4 sm:grid-cols-2">
           <div><p class="text-xs text-gray-500">{{ t('payment.orders.payAmount') }}</p><p class="text-lg font-semibold">¥{{ details.order.pay_amount.toFixed(2) }} CNY</p></div>
-          <div><p class="text-xs text-gray-500">{{ t('payment.orders.creditedAmount') }}</p><p class="text-lg font-semibold">${{ details.order.amount.toFixed(2) }} USD</p></div>
+          <div><p class="text-xs text-gray-500">{{ t('payment.orders.creditedAmount') }}</p><p class="text-lg font-semibold">¥{{ usdToCny(details.order.amount).toFixed(2) }} CNY</p></div>
           <div class="sm:col-span-2"><p class="text-xs text-gray-500">{{ t('payment.manual.payee') }}</p><p class="text-sm font-medium">{{ details.payee_name }}</p></div>
         </div>
 
@@ -69,6 +69,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { usdToCny } from '@/utils/displayCurrency'
 import { paymentAPI } from '@/api/payment'
 import type { ManualOrderDetails } from '@/types/payment'
 import { useAppStore, useAuthStore } from '@/stores'

@@ -113,4 +113,41 @@ describe('AffiliateView', () => {
       'affiliate.linkCopied',
     )
   })
+
+  it('shows affiliate balances and rebates with the CNY display symbol', async () => {
+    getAffiliateDetail.mockResolvedValueOnce({
+      user_id: 1,
+      aff_code: affiliateCode,
+      inviter_id: null,
+      aff_count: 1,
+      aff_quota: 12.34,
+      aff_frozen_quota: 0.5,
+      aff_history_quota: 56.78,
+      effective_rebate_rate_percent: 10,
+      invitees: [{
+        user_id: 2,
+        email: 'invitee@example.com',
+        username: 'invitee',
+        total_rebate: 3.21,
+        created_at: '2026-03-08T00:00:00Z',
+      }],
+    })
+
+    const wrapper = mount(AffiliateView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<main><slot /></main>' },
+          Icon: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('¥12.34')
+    expect(wrapper.text()).toContain('¥56.78')
+    expect(wrapper.text()).toContain('¥0.50')
+    expect(wrapper.text()).toContain('¥3.21')
+    expect(wrapper.text()).not.toContain('$12.34')
+    wrapper.unmount()
+  })
 })

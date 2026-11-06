@@ -53,6 +53,24 @@ describe('PricingEntryCard default price auto-fill', () => {
     getModelDefaultPricing.mockResolvedValue({ found: true, input_price: 3e-6, output_price: 15e-6 })
   })
 
+  it.each(['1.0', '0.00', '0.0100'])('preserves the exact 1:1 decimal input %s', async (value) => {
+    const wrapper = shallowMount(PricingEntryCard, { props: { entry: { ...createEntry(), input_price: value } } })
+    const input = wrapper.findAll('input[type="number"]')[0]
+    expect((input.element as HTMLInputElement).value).toBe(value)
+    await input.setValue(value)
+    expect(emittedEntries(wrapper).at(-1)).toMatchObject({ input_price: value })
+  })
+
+  it('labels platform prices in CNY and preserves 1:1 input values', async () => {
+    const wrapper = shallowMount(PricingEntryCard, { props: { entry: { ...createEntry(), input_price: '2.5' } } })
+    expect(wrapper.text()).toContain('¥/MTok')
+    expect(wrapper.text()).not.toContain('$/MTok')
+    const input = wrapper.findAll('input[type="number"]')[0]
+    expect((input.element as HTMLInputElement).value).toBe('2.5')
+    await input.setValue('3.125')
+    expect(emittedEntries(wrapper).at(-1)).toMatchObject({ input_price: '3.125' })
+  })
+
   it('auto-fills the default price when a model is added to an empty entry', async () => {
     const wrapper = addModels(createEntry(), ['claude-opus-4-8'])
     await flushPromises()

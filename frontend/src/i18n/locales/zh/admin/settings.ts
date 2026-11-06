@@ -424,9 +424,9 @@ export default {
       },
       platformQuota: {
         platform:    '平台',
-        daily:       '日限额 (USD)',
-        weekly:      '周限额 (USD)',
-        monthly:     '月限额 (USD, 30天滚动)',
+        daily:       '日限额 (CNY)',
+        weekly:      '周限额 (CNY)',
+        monthly:     '月限额 (CNY, 30天滚动)',
         placeholder: '不限',
       },
       claudeCode: {
@@ -935,7 +935,7 @@ export default {
         title: '余额不足提醒',
         description: '当用户余额低于阈值时发送邮件提醒',
         enabled: '启用余额不足提醒',
-        threshold: '默认提醒阈值',
+        threshold: '默认提醒阈值（CNY）',
         thresholdHint: '用户未自定义时使用此值',
         thresholdPlaceholder: '输入金额',
         rechargeUrl: '充值页面 URL',

@@ -96,7 +96,7 @@ describe('AdminOrdersView manual payment review', () => {
 
     expect(api.getManualOrder).toHaveBeenCalledWith(101)
     expect(wrapper.text()).toContain('¥14.30')
-    expect(wrapper.text()).toContain('$2.00')
+    expect(wrapper.text()).toContain('¥2.00 CNY')
     expect(wrapper.get('[data-testid="manual-admin-qr-image"]').attributes('src')).toBe('data:image/png;base64,aGVsbG8=')
     expect(wrapper.get('[data-testid="manual-approve"]').attributes('disabled')).toBeDefined()
 

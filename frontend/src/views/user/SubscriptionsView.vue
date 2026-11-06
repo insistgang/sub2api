@@ -107,8 +107,8 @@
                   {{ t('userSubscriptions.daily') }}
                 </span>
                 <span class="text-sm text-gray-500 dark:text-dark-400">
-                  ¥{{ (subscription.daily_usage_usd || 0).toFixed(2) }} / ¥{{
-                    subscription.group.daily_limit_usd.toFixed(2)
+                  ¥{{ usdToCny(subscription.daily_usage_usd || 0).toFixed(2) }} / ¥{{
+                    usdToCny(subscription.group.daily_limit_usd).toFixed(2)
                   }}
                 </span>
               </div>
@@ -144,8 +144,8 @@
                   {{ t('userSubscriptions.weekly') }}
                 </span>
                 <span class="text-sm text-gray-500 dark:text-dark-400">
-                  ¥{{ (subscription.weekly_usage_usd || 0).toFixed(2) }} / ¥{{
-                    subscription.group.weekly_limit_usd.toFixed(2)
+                  ¥{{ usdToCny(subscription.weekly_usage_usd || 0).toFixed(2) }} / ¥{{
+                    usdToCny(subscription.group.weekly_limit_usd).toFixed(2)
                   }}
                 </span>
               </div>
@@ -185,8 +185,8 @@
                   {{ t('userSubscriptions.monthly') }}
                 </span>
                 <span class="text-sm text-gray-500 dark:text-dark-400">
-                  ¥{{ (subscription.monthly_usage_usd || 0).toFixed(2) }} / ¥{{
-                    subscription.group.monthly_limit_usd.toFixed(2)
+                  ¥{{ usdToCny(subscription.monthly_usage_usd || 0).toFixed(2) }} / ¥{{
+                    usdToCny(subscription.group.monthly_limit_usd).toFixed(2)
                   }}
                 </span>
               </div>
@@ -257,6 +257,7 @@ import type { UserSubscription } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateTimeToMinute } from '@/utils/format'
+import { usdToCny } from '@/utils/displayCurrency'
 import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
 import { platformBorderClass, platformBadgeClass, platformButtonClass, platformLabel } from '@/utils/platformColors'
 import {

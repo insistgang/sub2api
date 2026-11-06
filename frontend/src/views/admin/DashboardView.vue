@@ -114,19 +114,19 @@
                   <span
                     class="text-green-600 dark:text-green-400"
                     :title="t('admin.dashboard.actual')"
-                    >${{ formatCost(stats.today_actual_cost) }}</span
+                    >¥{{ formatCost(usdToCny(stats.today_actual_cost)) }}</span
                   >
                   <span class="text-gray-400 dark:text-gray-500"> / </span>
                   <span
                     class="text-orange-500 dark:text-orange-400"
                     :title="t('admin.dashboard.accountCost')"
-                    >${{ formatCost(stats.today_account_cost) }}</span
+                    >¥{{ formatCost(usdToCny(stats.today_account_cost)) }}</span
                   >
                   <span class="text-gray-400 dark:text-gray-500"> / </span>
                   <span
                     class="text-gray-400 dark:text-gray-500"
                     :title="t('admin.dashboard.standard')"
-                    >${{ formatCost(stats.today_cost) }}</span
+                    >¥{{ formatCost(usdToCny(stats.today_cost)) }}</span
                   >
                 </p>
               </div>
@@ -150,19 +150,19 @@
                   <span
                     class="text-green-600 dark:text-green-400"
                     :title="t('admin.dashboard.actual')"
-                    >${{ formatCost(stats.total_actual_cost) }}</span
+                    >¥{{ formatCost(usdToCny(stats.total_actual_cost)) }}</span
                   >
                   <span class="text-gray-400 dark:text-gray-500"> / </span>
                   <span
                     class="text-orange-500 dark:text-orange-400"
                     :title="t('admin.dashboard.accountCost')"
-                    >${{ formatCost(stats.total_account_cost) }}</span
+                    >¥{{ formatCost(usdToCny(stats.total_account_cost)) }}</span
                   >
                   <span class="text-gray-400 dark:text-gray-500"> / </span>
                   <span
                     class="text-gray-400 dark:text-gray-500"
                     :title="t('admin.dashboard.standard')"
-                    >${{ formatCost(stats.total_cost) }}</span
+                    >¥{{ formatCost(usdToCny(stats.total_cost)) }}</span
                   >
                 </p>
               </div>
@@ -352,6 +352,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
+import { usdToCny } from '@/utils/displayCurrency'
 
 const { t } = useI18n()
 import { adminAPI } from '@/api/admin'
@@ -580,7 +581,7 @@ const userTrendChartData = computed(() => {
 
 // Format helpers
 const formatUserTrendValue = (value: number): string =>
-  userTrendMetric.value === 'tokens' ? formatTokens(value) : `$${formatCost(value)}`
+  userTrendMetric.value === 'tokens' ? formatTokens(value) : `¥${formatCost(usdToCny(value))}`
 
 const formatTokens = (value: number | undefined): string => {
   if (value === undefined || value === null) return '0'

@@ -353,6 +353,28 @@ describe('GroupsView duplicate action', () => {
     wrapper.unmount()
   })
 
+  it('preserves precise subscription limits through yuan editing', async () => {
+    const group = { ...sourceGroup, subscription_type: 'subscription',
+      daily_limit_usd: 10.123456789, weekly_limit_usd: 50.234567891, monthly_limit_usd: 100.345678912 }
+    listGroups.mockResolvedValue({ items: [group], total: 1, page: 1, page_size: 20, pages: 1 })
+    updateGroup.mockResolvedValue(group)
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'common.edit')!.trigger('click')
+    await flushPromises()
+    const limits = wrapper.get('#edit-group-form').findAll('input[placeholder="admin.groups.subscription.noLimit"]')
+    expect(limits.map((input) => (input.element as HTMLInputElement).value))
+      .toEqual(['10.123456789', '50.234567891', '100.345678912'])
+    expect(limits.every((input) => !(input.element as HTMLInputElement).validity.stepMismatch)).toBe(true)
+    await wrapper.get('#edit-group-form').trigger('submit')
+    await flushPromises()
+    expect(updateGroup).toHaveBeenCalledWith(42, expect.objectContaining({
+      daily_limit_usd: group.daily_limit_usd, weekly_limit_usd: group.weekly_limit_usd,
+      monthly_limit_usd: group.monthly_limit_usd,
+    }))
+    wrapper.unmount()
+  })
+
   it('blocks saving an invalid group reasoning multiplier and allows clearing it', async () => {
     const group = {
       ...sourceGroup,

@@ -35,7 +35,7 @@
         </div>
         <div class="mt-1 flex justify-between text-sm">
           <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.creditedAmount') }}</span>
-          <span class="font-medium text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ order?.amount?.toFixed(2) }}</span>
+          <span class="font-medium text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ usdToCny(order?.amount ?? 0).toFixed(2) }}</span>
         </div>
         <div class="mt-1 flex justify-between text-sm">
           <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
@@ -43,7 +43,7 @@
         </div>
         <div v-if="actuallyRefunded > 0" class="mt-1 flex justify-between text-sm">
           <span class="text-gray-500 dark:text-gray-400">{{ t('payment.admin.alreadyRefunded') }}</span>
-          <span class="font-medium text-red-600 dark:text-red-400">{{ creditedAmountSymbol }}{{ actuallyRefunded.toFixed(2) }}</span>
+          <span class="font-medium text-red-600 dark:text-red-400">{{ creditedAmountSymbol }}{{ usdToCny(actuallyRefunded).toFixed(2) }}</span>
         </div>
       </div>
 
@@ -66,11 +66,11 @@
         <div v-if="form.deduct_balance && userBalance != null" class="mt-3 grid grid-cols-2 gap-3">
           <div class="rounded-lg bg-gray-50 p-3 text-sm dark:bg-dark-700">
             <div class="text-gray-500 dark:text-gray-400">{{ t('payment.admin.userBalance') }}</div>
-            <div class="mt-1 font-semibold text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ userBalance.toFixed(2) }}</div>
+            <div class="mt-1 font-semibold text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ usdToCny(userBalance).toFixed(2) }}</div>
           </div>
           <div class="rounded-lg bg-gray-50 p-3 text-sm dark:bg-dark-700">
             <div class="text-gray-500 dark:text-gray-400">{{ t('payment.admin.orderAmount') }}</div>
-            <div class="mt-1 font-semibold text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ order?.amount?.toFixed(2) }}</div>
+            <div class="mt-1 font-semibold text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ usdToCny(order?.amount ?? 0).toFixed(2) }}</div>
           </div>
         </div>
 
@@ -101,13 +101,13 @@
             type="number"
             step="0.01"
             min="0.01"
-            :max="maxRefundable"
+            :max="usdToCny(maxRefundable)"
             class="input pl-7"
             required
           />
         </div>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {{ t('payment.admin.maxRefundable') }}: {{ creditedAmountSymbol }}{{ maxRefundable.toFixed(2) }}
+          {{ t('payment.admin.maxRefundable') }}: {{ creditedAmountSymbol }}{{ usdToCny(maxRefundable).toFixed(2) }}
         </p>
       </div>
 
@@ -166,6 +166,7 @@
 <script setup lang="ts">
 import { reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { cnyToUsd, usdToCny } from '@/utils/displayCurrency'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import type { PaymentOrder } from '@/types/payment'
 import { formatOrderDateTime } from '@/components/payment/orderUtils'
@@ -187,7 +188,7 @@ const emit = defineEmits<{
   (e: 'cancel'): void
 }>()
 
-const creditedAmountSymbol = currencySymbol('USD')
+const creditedAmountSymbol = currencySymbol('CNY')
 
 const paymentAmountSymbol = computed(() => currencySymbol(props.order?.currency))
 
@@ -214,16 +215,16 @@ const maxRefundable = computed(() => {
 
 const balanceInsufficient = computed(() => {
   if (props.userBalance == null || !props.order) return false
-  return props.userBalance < form.amount
+  return props.userBalance < cnyToUsd(form.amount)
 })
 
 watch(() => props.show, (val) => {
   if (val && props.order) {
     // For REFUND_REQUESTED, pre-fill with the requested amount
     if (props.order.status === 'REFUND_REQUESTED' && props.order.refund_amount) {
-      form.amount = props.order.refund_amount
+      form.amount = usdToCny(props.order.refund_amount)
     } else {
-      form.amount = maxRefundable.value
+      form.amount = usdToCny(maxRefundable.value)
     }
     form.reason = props.order.refund_request_reason || ''
     form.deduct_balance = true
@@ -236,8 +237,9 @@ function formatDateTime(dateStr: string): string {
 }
 
 function handleSubmit() {
-  if (form.amount <= 0 || form.amount > maxRefundable.value) return
+  const amount = cnyToUsd(form.amount)
+  if (amount <= 0 || amount > maxRefundable.value) return
   if (props.requireForce && !form.force) return
-  emit('confirm', { ...form })
+  emit('confirm', { ...form, amount })
 }
 </script>

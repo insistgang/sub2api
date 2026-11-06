@@ -86,7 +86,7 @@ describe('ManualPaymentView', () => {
     expect(image.attributes('src')).toBe(qrImage)
     expect(wrapper.find('canvas').exists()).toBe(false)
     expect(wrapper.text()).toContain('¥14.30')
-    expect(wrapper.text()).toContain('$2.00')
+    expect(wrapper.text()).toContain('¥2.00 CNY')
   })
 
   it('keeps the original QR bytes in a readable preview, enlarge dialog, and save link', async () => {

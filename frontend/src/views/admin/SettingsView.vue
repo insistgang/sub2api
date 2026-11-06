@@ -8809,10 +8809,11 @@
                 <div class="relative">
                   <span
                     class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                    >$</span
+                    >¥</span
                   >
                   <input
-                    v-model.number="form.balance_low_notify_threshold"
+                    v-model.number="balanceNotifyThresholdCny"
+                    data-testid="balance-notify-threshold-cny"
                     type="number"
                     min="0"
                     step="0.01"
@@ -8999,6 +9000,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from "vue";
+import { usdToCny, cnyToUsd } from "@/utils/displayCurrency";
 import { listPlatformIds } from "@/constants/platformCatalog";
 import { useI18n } from "vue-i18n";
 import { adminAPI } from "@/api";
@@ -10097,6 +10099,13 @@ const form = reactive<SettingsForm>({
   affiliate_enabled: false,
   // Allow user view error requests
   allow_user_view_error_requests: false,
+});
+
+const balanceNotifyThresholdCny = computed({
+  get: () => usdToCny(Number(form.balance_low_notify_threshold) || 0),
+  set: (value: number) => {
+    form.balance_low_notify_threshold = cnyToUsd(Number(value) || 0);
+  },
 });
 
 // 人机验证 UI 状态：单卡片「总开关 + 服务商单选」，落库仍是三个独立

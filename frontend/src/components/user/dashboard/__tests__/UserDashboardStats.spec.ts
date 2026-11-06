@@ -13,6 +13,12 @@ vi.mock('vue-i18n', async () => {
   }
 })
 
+// Exercise the components with a non-identity rate so missing conversions are observable.
+vi.mock('@/utils/displayCurrency', () => ({
+  usdToCny: (amount: number) => amount * 5,
+  cnyToUsd: (amount: number) => amount / 5,
+}))
+
 import UserDashboardStats from '../UserDashboardStats.vue'
 import type { UserDashboardStats as UserStatsType } from '@/api/usage'
 
@@ -44,9 +50,9 @@ function makeStats(over: Partial<UserStatsType> = {}): UserStatsType {
   }
 }
 
-function mountStats(stats: UserStatsType, isSimple = false) {
+function mountStats(stats: UserStatsType, isSimple = false, balance = 0) {
   return mount(UserDashboardStats, {
-    props: { stats, balance: 0, isSimple, platformQuotas: null },
+    props: { stats, balance, isSimple, platformQuotas: null },
     global: { stubs: { Icon: true } },
   })
 }
@@ -61,10 +67,17 @@ describe('UserDashboardStats', () => {
         total_actual_cost: 21.1128,
       })
     )
-    expect(w.text()).toContain('¥2.2500')
-    expect(w.text()).toContain('¥96.7200')
+    expect(w.text()).toContain('¥11.2500')
+    expect(w.text()).toContain('¥483.6000')
+    expect(w.text()).not.toContain('¥2.2500')
+    expect(w.text()).not.toContain('¥96.7200')
     expect(w.text()).not.toContain('¥0.4500')
     expect(w.text()).not.toContain('¥21.1128')
+  })
+
+  it('displays the balance as CNY using the display conversion rate', () => {
+    const w = mountStats(makeStats(), false, 2)
+    expect(w.text()).toContain('¥10.00')
   })
 
   it('价格不再使用美元符号', () => {

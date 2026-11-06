@@ -429,9 +429,9 @@ export default {
       },
       platformQuota: {
         platform:    'Platform',
-        daily:       'Daily (USD)',
-        weekly:      'Weekly (USD)',
-        monthly:     'Monthly (USD, 30d rolling)',
+        daily:       'Daily (CNY)',
+        weekly:      'Weekly (CNY)',
+        monthly:     'Monthly (CNY, 30d rolling)',
         placeholder: 'Unlimited',
       },
       claudeCode: {
@@ -940,7 +940,7 @@ export default {
         title: 'Balance Low Notification',
         description: 'Send email notification when user balance falls below threshold',
         enabled: 'Enable Balance Low Notification',
-        threshold: 'Default Threshold',
+        threshold: 'Default Threshold (CNY)',
         thresholdHint: 'Used when user has not set a custom value',
         thresholdPlaceholder: 'Enter amount',
         rechargeUrl: 'Recharge Page URL',

@@ -54,6 +54,14 @@ describe('GroupDistributionChart', () => {
     },
   ]
 
+  it('uses CNY in user costs and chart tooltip with CNY default', () => {
+    const wrapper = mount(GroupDistributionChart, { props: { groupStats, metric: 'actual_cost', displayCurrency: 'CNY', enableBreakdown: false }, global: { stubs: { LoadingSpinner: true } } })
+    expect(wrapper.text()).toContain('¥0.100')
+    expect(wrapper.text()).not.toContain('$')
+    const options = (wrapper.vm as any).$?.setupState.doughnutOptions
+    expect(options.plugins.tooltip.callbacks.label({ label: 'group-a', raw: 0.1, dataset: { data: [0.1, 0.9] } })).toBe('group-a: ¥0.100 (10.0%)')
+  })
+
   it('uses total_tokens and token ordering by default', () => {
     const wrapper = mount(GroupDistributionChart, {
       props: {
@@ -110,7 +118,7 @@ describe('GroupDistributionChart', () => {
       raw: 0.9,
       dataset: { data: [0.9, 0.1] },
     })
-    expect(label).toBe('group-b: $0.900 (90.0%)')
+    expect(label).toBe('group-b: ¥0.900 (90.0%)')
   })
 
   it('can hide account cost for user usage stats without account_cost', () => {

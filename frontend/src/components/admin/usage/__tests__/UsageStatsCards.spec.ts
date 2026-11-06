@@ -44,6 +44,17 @@ const stats = {
 }
 
 describe('UsageStatsCards', () => {
+  it('uses CNY for user amounts while supporting explicit USD display', () => {
+    const mountCards = (displayCurrency?: 'USD' | 'CNY') => mount(UsageStatsCards, {
+      props: { stats, displayCurrency },
+      global: { stubs: { Icon: true } },
+    })
+    expect(mountCards('CNY').text()).toContain('¥0.0010')
+    expect(mountCards('CNY').text()).not.toContain('$')
+    expect(mountCards().text()).toContain('¥0.0010')
+    expect(mountCards('USD').text()).toContain('$0.0010')
+  })
+
   it('shows cache token breakdown values', () => {
     const wrapper = mount(UsageStatsCards, {
       props: {

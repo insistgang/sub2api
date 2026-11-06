@@ -724,6 +724,22 @@ describe("admin SettingsView payment visible method controls", () => {
     adminSettingsFetch.mockResolvedValue(undefined);
   });
 
+  it("uses CNY for platform quota labels and balance alert inputs without changing the saved amount", async () => {
+    expect(zhSettings.settings.platformQuota.daily).toContain("CNY");
+    expect(enSettings.settings.platformQuota.daily).toContain("CNY");
+    getSettings.mockResolvedValue({ ...baseSettingsResponse, balance_low_notify_enabled: true, balance_low_notify_threshold: 2.5 });
+    const wrapper = mountView();
+    await flushPromises();
+    const input = wrapper.find('[data-testid="balance-notify-threshold-cny"]');
+    expect(input.exists()).toBe(true);
+    expect(input.element.parentElement?.textContent).toContain("¥");
+    expect((input.element as HTMLInputElement).value).toBe("2.5");
+    await input.setValue("3.125");
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+    expect(updateSettings.mock.calls.at(-1)?.[0]).toMatchObject({ balance_low_notify_threshold: 3.125 });
+  });
+
   it("loads and saves the open button visibility for each custom menu", async () => {
     const menuItems = [
       { id: "docs", label: "Docs", url: "https://example.com/docs", icon_svg: "", visibility: "user", sort_order: 0 },

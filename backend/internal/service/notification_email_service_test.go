@@ -69,6 +69,39 @@ func TestNotificationEmailTemplateOverrideAndRestore(t *testing.T) {
 	require.ErrorIs(t, err, ErrSettingNotFound)
 }
 
+func TestNotificationEmailInternalBalanceTemplatesUseCNY(t *testing.T) {
+	ctx := context.Background()
+	svc := NewNotificationEmailService(newNotificationEmailMemorySettingRepo(), nil)
+	cases := []struct {
+		event   string
+		vars    map[string]string
+		amounts []string
+	}{
+		{
+			event:   NotificationEmailEventBalanceLow,
+			vars:    map[string]string{"current_balance": "12.34", "threshold": "20.00", "recharge_url": "https://example.com/recharge"},
+			amounts: []string{"12.34", "20.00"},
+		},
+		{
+			event:   NotificationEmailEventBalanceRechargeSuccess,
+			vars:    map[string]string{"recharge_amount": "50.00", "current_balance": "62.34", "order_id": "1024"},
+			amounts: []string{"50.00", "62.34"},
+		},
+	}
+	for _, tc := range cases {
+		for _, locale := range []string{"en", "zh"} {
+			t.Run(tc.event+"/"+locale, func(t *testing.T) {
+				preview, err := svc.PreviewTemplate(ctx, NotificationEmailPreviewInput{Event: tc.event, Locale: locale, Variables: tc.vars})
+				require.NoError(t, err)
+				for _, amount := range tc.amounts {
+					require.Contains(t, preview.HTML, "¥"+amount)
+					require.NotContains(t, preview.HTML, "$"+amount)
+				}
+			})
+		}
+	}
+}
+
 func TestNotificationEmailTemplateRejectsUnsupportedPlaceholder(t *testing.T) {
 	ctx := context.Background()
 	svc := NewNotificationEmailService(newNotificationEmailMemorySettingRepo(), nil)
