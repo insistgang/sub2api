@@ -452,6 +452,19 @@ func newConfiguredCodexModelDescriptor(modelID string) configuredCodexModelDescr
 		InputModalities:                   []string{"text"},
 	}
 
+	if strings.EqualFold(modelID, "MiniMax-M3.1-Flash") {
+		defaultReasoningLevel := "max"
+		descriptor.Description = "MiniMax M3.1 Flash routed through Sub2API."
+		descriptor.DefaultReasoningLevel = &defaultReasoningLevel
+		descriptor.SupportedReasoningLevels = []configuredCodexReasoningLevel{
+			{Effort: "low", Description: configuredCodexReasoningLevelDescription("low")},
+			{Effort: "medium", Description: configuredCodexReasoningLevelDescription("medium")},
+			{Effort: "high", Description: configuredCodexReasoningLevelDescription("high")},
+			{Effort: "xhigh", Description: configuredCodexReasoningLevelDescription("xhigh")},
+			{Effort: "max", Description: configuredCodexReasoningLevelDescription("max")},
+		}
+	}
+
 	if isDeepSeekCodexModel(modelID) {
 		defaultReasoningLevel := "high"
 		descriptor.DisplayName = deepSeekCodexDisplayName(modelID)

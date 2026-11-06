@@ -260,6 +260,13 @@ func effortsFromManifestModel(t *testing.T, model map[string]any) []string {
 	return efforts
 }
 
+func TestMiniMaxM31FlashCodexReasoningLevels(t *testing.T) {
+	model := newConfiguredCodexModelDescriptor("MiniMax-M3.1-Flash")
+	require.NotNil(t, model.DefaultReasoningLevel)
+	require.Equal(t, "max", *model.DefaultReasoningLevel)
+	require.Equal(t, []string{"low", "medium", "high", "xhigh", "max"}, effortsFromConfiguredCodexLevels(model.SupportedReasoningLevels))
+}
+
 func TestNewConfiguredCodexModelDescriptorUsesProviderMetadataAndSafeFallback(t *testing.T) {
 	t.Parallel()
 
