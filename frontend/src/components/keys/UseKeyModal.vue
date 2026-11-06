@@ -813,7 +813,7 @@ const currentFiles = computed((): FileConfig[] => {
         return generateRoutedCodexFiles(apiBase, apiKey, 'antigravity')
       }
       if (activeClientTab.value === 'gemini') {
-        return [generateGeminiCliContent(`${baseRoot}/antigravity`, apiKey, 'gemini-3.8-flash')]
+        return [generateGeminiCliContent(`${baseRoot}/antigravity`, apiKey, 'gemini-4-argon-low')]
       }
       return generateAnthropicFiles(`${baseRoot}/antigravity`, apiKey)
     case 'grok':
@@ -1377,8 +1377,8 @@ function generateRoutedCodexFiles(
     grok: 'grok-4.7',
     kimi: 'k3.1-pro',
     zhipu: 'glm-4.7',
-    deepseek: 'deepseek-v4-pro',
-    minimax: 'MiniMax-M3',
+    deepseek: 'deepseek-flash',
+    minimax: 'MiniMax-M3.1-Flash',
     opencode_go: 'glm-5.3',
     composite: DEFAULT_OPENAI_MODEL
   }
@@ -1465,8 +1465,8 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
   const compatibleModelIds: Record<string, string> = {
     kimi: 'k3.1-pro',
     zhipu: 'glm-4.7',
-    deepseek: 'deepseek-v4-pro',
-    minimax: 'MiniMax-M3',
+    deepseek: 'deepseek-flash',
+    minimax: 'MiniMax-M3.1-Flash',
     opencode_go: 'glm-5.3'
   }
   const compatibleModel = compatibleModelIds[platform]
@@ -1808,6 +1808,7 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
 
   const antigravityGeminiModels = {
     'gemini-3.8-flash': { name: 'Gemini 3.8 Flash' },
+    'gemini-4-argon-low': { name: 'Gemini 4 Argon (Low)' },
     'gemini-4-argon-high': { name: 'Gemini 4 Argon (High)' },
     'gemini-2.5-flash': {
       name: 'Gemini 2.5 Flash',

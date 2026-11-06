@@ -116,8 +116,8 @@ describe('UseKeyModal', () => {
     })
     await wrapper.findAll('button').find(button => button.text().includes('keys.useKeyModal.cliTabs.opencode'))!.trigger('click')
     const config = JSON.parse(wrapper.find('pre code').text())
-    expect(config.model).toBe('sub2api-deepseek/deepseek-v4-pro')
-    expect(config.provider['sub2api-deepseek'].models['deepseek-v4-pro']).toEqual({ name: 'deepseek-v4-pro' })
+    expect(config.model).toBe('sub2api-deepseek/deepseek-flash')
+    expect(config.provider['sub2api-deepseek'].models['deepseek-flash']).toEqual({ name: 'deepseek-flash' })
     expect(wrapper.text()).toContain('keys.useKeyModal.opencode.compatibleHint')
   })
 

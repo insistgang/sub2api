@@ -49,7 +49,7 @@ describe('API key client setup configuration', () => {
     await selectClient(wrapper, 'keys.useKeyModal.cliTabs.geminiCli')
     const content = wrapper.find('pre code').text()
     expect(content).toContain('GOOGLE_GEMINI_BASE_URL="https://example.com/antigravity"')
-    expect(content).toContain('GEMINI_MODEL="gemini-3.8-flash"')
+    expect(content).toContain('GEMINI_MODEL="gemini-4-argon-low"')
     expect(content).toContain('GOOGLE_GENAI_API_VERSION="v1beta"')
   })
 
@@ -79,8 +79,8 @@ describe('API key client setup configuration', () => {
   it.each([
     ['kimi', 'k3.1-pro'],
     ['zhipu', 'glm-4.7'],
-    ['deepseek', 'deepseek-v4-pro'],
-    ['minimax', 'MiniMax-M3'],
+    ['deepseek', 'deepseek-flash'],
+    ['minimax', 'MiniMax-M3.1-Flash'],
     ['opencode_go', 'glm-5.3']
   ])('uses an OpenAI-compatible OpenCode provider for %s without advertising GPT models', async (platform, model) => {
     const wrapper = openModal(platform)
@@ -93,6 +93,14 @@ describe('API key client setup configuration', () => {
     expect(providers[0]!.models).toHaveProperty(model)
     expect(providers[0]!.models).not.toHaveProperty('gpt-6.1-terra')
   })
+
+  it.each([['deepseek', 'deepseek-flash'], ['minimax', 'MiniMax-M3.1-Flash']])(
+    'uses the verified current model for %s Codex configuration', async (platform, model) => {
+      const wrapper = openModal(platform)
+      await selectClient(wrapper, 'keys.useKeyModal.cliTabs.codexCli')
+      expect(wrapper.findAll('pre code').map(item => item.text()).join('\n')).toContain(`model = "${model}"`)
+    }
+  )
 
   it('uses current Grok defaults and the supported 2.0 image model', () => {
     const content = openModal('grok').findAll('pre code').map(item => item.text()).join('\n')
@@ -108,6 +116,7 @@ describe('API key client setup configuration', () => {
     const gemini = configs.find(config => config.provider['antigravity-gemini'])!.provider['antigravity-gemini'].models
     const claude = configs.find(config => config.provider['antigravity-claude'])!.provider['antigravity-claude'].models
     expect(gemini).toHaveProperty('gemini-3.8-flash')
+    expect(gemini).toHaveProperty('gemini-4-argon-low')
     expect(gemini).toHaveProperty('gemini-4-argon-high')
     expect(claude).toHaveProperty('claude-sonnet-5-5-high')
     expect(claude).toHaveProperty('claude-opus-5-5-high')
