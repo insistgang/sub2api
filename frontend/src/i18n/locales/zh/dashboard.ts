@@ -205,13 +205,13 @@ export default {
         claudeNote:
           '这些环境变量将在当前终端会话中生效。如需永久配置，请将其添加到 ~/.bashrc、~/.zshrc 或相应的配置文件中。',
         geminiNote:
-          '这些环境变量将在当前终端会话中生效。如需永久配置，请将其添加到 ~/.bashrc、~/.zshrc 或相应的配置文件中。'
+          '默认 gemini-3.8-flash 需由当前 Antigravity 分组与账号支持。环境变量将在当前终端会话中生效；永久配置请将其添加到终端配置文件。'
       },
       gemini: {
         description:
           '将以下环境变量添加到您的终端配置文件或直接在终端中运行，以配置 Gemini CLI 访问。',
-        modelComment: '如果你有 Gemini 3 权限可以填：gemini-3-pro-preview',
-        note: '这些环境变量将在当前终端会话中生效。如需永久配置，请将其添加到 ~/.bashrc、~/.zshrc 或相应的配置文件中。'
+        modelComment: '模型必须在当前分组和账号支持列表中',
+        note: '默认 gemini-2.5-flash 用于兼容既有账号；2.5 系列可能仅对既有用户开放。若当前分组与账号支持，可改为 gemini-3.5-flash。环境变量在当前终端生效；永久配置请保存到终端配置文件。'
       },
       grok: {
         description:
@@ -223,9 +223,9 @@ export default {
         codexConfigTomlHint:
           'Codex 官方：wire_api 仅支持 "responses"；优先 env_key，勿与 experimental_bearer_token 混用；非 OpenAI 网关默认 supports_websockets = false（Sub2API 仍可接客户端 WS 并桥接到 HTTP/SSE）。合并前备份 ~/.codex/config.toml。',
         note:
-          '导出 GROK_MODELS_BASE_URL 与 XAI_API_KEY，将完整 config.toml（endpoints/auth/models/session/features）保存为 ~/.grok/config.toml，运行 grok inspect，再用 /model 选择 grok-4.5（编程场景可用 grok-build-0.1）。',
+          '导出 GROK_MODELS_BASE_URL 与 XAI_API_KEY，将完整 config.toml（endpoints/auth/models/session/features）保存为 ~/.grok/config.toml，运行 grok inspect，再用 /model 选择 grok-4.7（编程场景可用 grok-build-0.1）。',
         noteWindows:
-          '设置 GROK_MODELS_BASE_URL 与 XAI_API_KEY，将完整 config.toml 保存为 %USERPROFILE%\\.grok\\config.toml，运行 grok inspect，再用 /model 选择 grok-4.5（编程场景可用 grok-build-0.1）。',
+          '设置 GROK_MODELS_BASE_URL 与 XAI_API_KEY，将完整 config.toml 保存为 %USERPROFILE%\\.grok\\config.toml，运行 grok inspect，再用 /model 选择 grok-4.7（编程场景可用 grok-build-0.1）。',
         claudeNote:
           '二选一：终端环境变量仅当前会话；~/.claude/settings.json 可持久化。请勿把含 API Key 的文件提交到仓库。',
         codexNote:
@@ -272,7 +272,10 @@ export default {
       opencode: {
         title: 'OpenCode 配置示例',
         subtitle: 'opencode.json',
-        hint: '配置文件路径：~/.config/opencode/opencode.json（或 opencode.jsonc），不存在需手动创建。可使用默认 provider（openai/anthropic/google）或自定义 provider_id。API Key 支持直接配置或通过客户端 /connect 命令配置。示例仅供参考，模型与选项可按需调整。'
+        hint: '配置文件路径：~/.config/opencode/opencode.json（或 opencode.jsonc），不存在需手动创建。可使用默认 provider（openai/anthropic/google）或自定义 provider_id。API Key 支持直接配置或通过客户端 /connect 命令配置。示例仅供参考，模型与选项可按需调整。',
+        routedHint: '这是 OpenAI 协议的兼容示例，并不代表静态 GPT 列表均已授权。模型与协议必须匹配当前分组目录和路由；混合或插件分组请先查询可用目录，再调整此示例。',
+        compatibleHint: '此示例通过 OpenAI 兼容 Chat Completions 协议使用一个示例模型。调用前确认模型在当前分组与账号的支持列表中；不要直接套用其他平台的模型名。',
+        grokHint: '此 Grok 示例使用 OpenAI SDK 的 Responses 协议。模型仍需由当前 Grok 分组与账号授权；图片和视频使用独立媒体端点。'
       }
     },
     customKeyLabel: '自定义密钥',

@@ -19,6 +19,7 @@ describe('Codex models API', () => {
   it.each([
     ['https://example.com', 'https://example.com/v1/models'],
     ['https://example.com/api/v1/', 'https://example.com/api/v1/models'],
+    ['https://example.com/api/v1beta/', 'https://example.com/api/v1/models'],
     ['', `${window.location.origin}/v1/models`]
   ])('builds a version-free provider catalog URL from %s', (baseUrl, expected) => {
     expect(buildCodexModelCatalogUrl(baseUrl)).toBe(expected)

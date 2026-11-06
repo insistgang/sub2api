@@ -745,7 +745,7 @@ const comment = (value: string) => wrapToken('text-slate-500', value)
 const currentFiles = computed((): FileConfig[] => {
   const baseUrl = props.baseUrl || window.location.origin
   const apiKey = props.apiKey
-  const baseRoot = baseUrl.replace(/\/v1\/?$/, '').replace(/\/+$/, '')
+  const baseRoot = baseUrl.trim().replace(/\/+$/, '').replace(/\/(?:v1|v1beta)$/i, '')
   const ensureV1 = (value: string) => {
     const trimmed = value.replace(/\/+$/, '')
     return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
@@ -776,8 +776,14 @@ const currentFiles = computed((): FileConfig[] => {
         ]
       case 'grok':
         return [generateOpenCodeConfig('grok', apiBase, apiKey)]
+      case 'kimi':
+      case 'zhipu':
+      case 'deepseek':
+      case 'minimax':
+      case 'opencode_go':
+        return [generateOpenCodeConfig(props.platform, apiBase, apiKey)]
       default:
-        return [generateOpenCodeConfig('openai', apiBase, apiKey)]
+        return [generateOpenCodeConfig('openai', apiBase, apiKey, undefined, true)]
     }
   }
 
@@ -801,15 +807,15 @@ const currentFiles = computed((): FileConfig[] => {
       if (activeClientTab.value === 'codex') {
         return generateRoutedCodexFiles(apiBase, apiKey, 'gemini')
       }
-      return [generateGeminiCliContent(baseUrl, apiKey)]
+      return [generateGeminiCliContent(baseRoot, apiKey)]
     case 'antigravity':
       if (activeClientTab.value === 'codex') {
         return generateRoutedCodexFiles(apiBase, apiKey, 'antigravity')
       }
       if (activeClientTab.value === 'gemini') {
-        return [generateGeminiCliContent(`${baseUrl}/antigravity`, apiKey)]
+        return [generateGeminiCliContent(`${baseRoot}/antigravity`, apiKey, 'gemini-3.8-flash')]
       }
-      return generateAnthropicFiles(`${baseUrl}/antigravity`, apiKey)
+      return generateAnthropicFiles(`${baseRoot}/antigravity`, apiKey)
     case 'grok':
       if (activeClientTab.value === 'claude') {
         return generateGrokClaudeFiles(baseRoot, apiKey)
@@ -837,7 +843,7 @@ const currentFiles = computed((): FileConfig[] => {
       if (activeClientTab.value === 'codex' && props.platform) {
         return generateRoutedCodexFiles(apiBase, apiKey, props.platform)
       }
-      return generateAnthropicFiles(baseUrl, apiKey)
+      return generateAnthropicFiles(baseRoot, apiKey)
   }
 })
 
@@ -864,12 +870,13 @@ Invoke-RestMethod -Method Post -Uri "${endpoint}" -Headers $headers -ContentType
     }
   }
   if (activeTab.value === 'cmd') {
+    const cmdPayload = JSON.stringify(JSON.parse(payload)).replace(/"/g, '\\"')
     return {
       path: 'Command Prompt',
       content: `curl -X POST "${endpoint}" ^
   -H "Authorization: Bearer ${apiKey}" ^
   -H "Content-Type: application/json" ^
-  --data "{\"model\":\"jev-latest\",\"state\":\"Text to evaluate\",\"questions\":{\"safety\":{\"type\":\"noul\",\"instructions\":\"Evaluate whether the text is unsafe\"}}}"`
+  --data "${cmdPayload}"`
     }
   }
   return {
@@ -936,12 +943,12 @@ function generateGrokClaudeFiles(baseUrl: string, apiKey: string): FileConfig[] 
   const environment = {
     ANTHROPIC_BASE_URL: baseUrl,
     ANTHROPIC_AUTH_TOKEN: apiKey,
-    ANTHROPIC_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_OPUS_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_SONNET_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_HAIKU_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_FABLE_MODEL: 'grok-4.5',
-    CLAUDE_CODE_SUBAGENT_MODEL: 'grok-4.5',
+    ANTHROPIC_MODEL: 'grok-4.7',
+    ANTHROPIC_DEFAULT_OPUS_MODEL: 'grok-4.7',
+    ANTHROPIC_DEFAULT_SONNET_MODEL: 'grok-4.7',
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: 'grok-4.7',
+    ANTHROPIC_DEFAULT_FABLE_MODEL: 'grok-4.7',
+    CLAUDE_CODE_SUBAGENT_MODEL: 'grok-4.7',
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
   }
   let path: string
@@ -988,8 +995,7 @@ function generateGrokClaudeFiles(baseUrl: string, apiKey: string): FileConfig[] 
   ]
 }
 
-function generateGeminiCliContent(baseUrl: string, apiKey: string): FileConfig {
-  const model = 'gemini-2.0-flash'
+function generateGeminiCliContent(baseUrl: string, apiKey: string, model = 'gemini-2.5-flash'): FileConfig {
   const modelComment = t('keys.useKeyModal.gemini.modelComment')
   let path: string
   let content: string
@@ -999,18 +1005,22 @@ function generateGeminiCliContent(baseUrl: string, apiKey: string): FileConfig {
     case 'unix':
       path = 'Terminal'
       content = `export GOOGLE_GEMINI_BASE_URL="${baseUrl}"
+export GOOGLE_GENAI_API_VERSION="v1beta"
 export GEMINI_API_KEY="${apiKey}"
 export GEMINI_MODEL="${model}"  # ${modelComment}`
       highlighted = `${keyword('export')} ${variable('GOOGLE_GEMINI_BASE_URL')}${operator('=')}${string(`"${baseUrl}"`)}
+${keyword('export')} ${variable('GOOGLE_GENAI_API_VERSION')}${operator('=')}${string('"v1beta"')}
 ${keyword('export')} ${variable('GEMINI_API_KEY')}${operator('=')}${string(`"${apiKey}"`)}
 ${keyword('export')} ${variable('GEMINI_MODEL')}${operator('=')}${string(`"${model}"`)}  ${comment(`# ${modelComment}`)}`
       break
     case 'cmd':
       path = 'Command Prompt'
       content = `set GOOGLE_GEMINI_BASE_URL=${baseUrl}
+set GOOGLE_GENAI_API_VERSION=v1beta
 set GEMINI_API_KEY=${apiKey}
 set GEMINI_MODEL=${model}`
       highlighted = `${keyword('set')} ${variable('GOOGLE_GEMINI_BASE_URL')}${operator('=')}${string(baseUrl)}
+${keyword('set')} ${variable('GOOGLE_GENAI_API_VERSION')}${operator('=')}${string('v1beta')}
 ${keyword('set')} ${variable('GEMINI_API_KEY')}${operator('=')}${string(apiKey)}
 ${keyword('set')} ${variable('GEMINI_MODEL')}${operator('=')}${string(model)}
 ${comment(`REM ${modelComment}`)}`
@@ -1018,9 +1028,11 @@ ${comment(`REM ${modelComment}`)}`
     case 'powershell':
       path = 'PowerShell'
       content = `$env:GOOGLE_GEMINI_BASE_URL="${baseUrl}"
+$env:GOOGLE_GENAI_API_VERSION="v1beta"
 $env:GEMINI_API_KEY="${apiKey}"
 $env:GEMINI_MODEL="${model}"  # ${modelComment}`
       highlighted = `${keyword('$env:')}${variable('GOOGLE_GEMINI_BASE_URL')}${operator('=')}${string(`"${baseUrl}"`)}
+${keyword('$env:')}${variable('GOOGLE_GENAI_API_VERSION')}${operator('=')}${string('"v1beta"')}
 ${keyword('$env:')}${variable('GEMINI_API_KEY')}${operator('=')}${string(`"${apiKey}"`)}
 ${keyword('$env:')}${variable('GEMINI_MODEL')}${operator('=')}${string(`"${model}"`)}  ${comment(`# ${modelComment}`)}`
       break
@@ -1186,10 +1198,10 @@ cli_chat_proxy_base_url = "${baseUrl}"      # CLI chat-proxy base (env: GROK_CLI
 [auth]
 preferred_method = "api_key"
 
-[model."grok-4.5"]
-model = "grok-4.5"                          # id sent to the API
-name = "Grok 4.5"                           # shown in /model picker
-description = "Grok 4.5 via Sub2API (Responses)"
+[model."grok-4.7"]
+model = "grok-4.7"                          # id sent to the API
+name = "Grok 4.7"                           # shown in /model picker
+description = "Grok 4.7 via Sub2API (Responses)"
 # base_url inherits from [endpoints].models_base_url; override only if needed:
 # base_url = "${baseUrl}"
 env_key = "XAI_API_KEY"                     # or: api_key = "${apiKey}"  (not recommended)
@@ -1200,6 +1212,15 @@ context_window = 500000                     # drives auto-compaction timing
 # top_p = 0.95
 # max_completion_tokens = 8192
 # Server-side (backend) web_search tools — only if your gateway exposes them:
+supports_backend_search = true
+
+# Previous generation remains available when the group allows it.
+[model."grok-4.5"]
+model = "grok-4.5"
+name = "Grok 4.5"
+env_key = "XAI_API_KEY"
+api_backend = "responses"
+context_window = 500000
 supports_backend_search = true
 
 [model."grok-build-0.1"]
@@ -1231,7 +1252,7 @@ supports_backend_search = true
 
 # Optional short alias for /model grok:
 # [model."grok"]
-# model = "grok-4.5"
+# model = "grok-4.7"
 # name = "Grok"
 # env_key = "XAI_API_KEY"
 # api_backend = "responses"
@@ -1239,10 +1260,10 @@ supports_backend_search = true
 # supports_backend_search = true
 
 [models]
-# xAI recommends grok-build* for coding/agent sessions; use grok-4.5 for general chat.
-default = "grok-4.5"
-web_search = "grok-4.5"                     # client-side web_search tool model (must exist as [model.*])
-image_description = "grok-4.5"              # vision/describe-image helper model
+# xAI recommends grok-build* for coding/agent sessions; use grok-4.7 for general chat.
+default = "grok-4.7"
+web_search = "grok-4.7"                     # client-side web_search tool model (must exist as [model.*])
+image_description = "grok-4.7"              # vision/describe-image helper model
 # Optional environment-wide sampling defaults (per-model values win):
 # temperature = 0.7
 # top_p = 0.95
@@ -1257,7 +1278,7 @@ auto_compact_threshold_percent = 80         # auto-compact at this % of context_
 [features]
 image_gen = true
 video_gen = true
-image_gen_model_override = "grok-imagine-image-quality"   # or grok-imagine-image
+image_gen_model_override = "grok-imagine-image-2.0"   # or grok-imagine-image
 image_edit_model_override = "grok-imagine-edit"
 # Optional feature flags (defaults shown in docs):
 # telemetry = false
@@ -1280,7 +1301,7 @@ function generateGrokCodexFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const shell = activeTab.value
   const isWindowsPath = shell === 'windows' || shell === 'cmd' || shell === 'powershell'
   const configDir = isWindowsPath ? '%userprofile%\\.codex' : '~/.codex'
-  const model = selectCodexCatalogModel('grok-4.5')
+  const model = selectCodexCatalogModel('grok-4.7')
 
   let envPath: string
   let envContent: string
@@ -1303,7 +1324,7 @@ function generateGrokCodexFiles(baseUrl: string, apiKey: string): FileConfig[] {
 # Docs: Codex config reference (model_providers.*, wire_api = "responses")
 #
 # Text models only. Image/video: grok-imagine-image / grok-imagine-video on media endpoints.
-# Switch model: grok-4.5 | grok-4.3 | grok-build-0.1 | grok-4.20-multi-agent-0309 (text / web_search)
+# Switch model: grok-4.7 | grok-4.5 | grok-4.3 | grok-build-0.1 | grok-4.20-multi-agent-0309 (text / web_search)
 
 model_provider = "sub2api"
 model = "${model}"
@@ -1350,11 +1371,11 @@ function generateRoutedCodexFiles(
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
   const preferredModels: Partial<Record<GroupPlatform, string>> = {
     openai: DEFAULT_OPENAI_MODEL,
-    anthropic: 'claude-sonnet-4-6',
+    anthropic: 'claude-sonnet-5-5',
     gemini: 'gemini-2.5-pro',
-    antigravity: 'claude-sonnet-4-6',
-    grok: 'grok-4.5',
-    kimi: 'kimi-k2.5',
+    antigravity: 'claude-sonnet-5-5-high',
+    grok: 'grok-4.7',
+    kimi: 'k3.1-pro',
     zhipu: 'glm-4.7',
     deepseek: 'deepseek-v4-pro',
     minimax: 'MiniMax-M3',
@@ -1440,9 +1461,18 @@ goals = true`
   return buildOpenAICodexFileConfigs(configDir, configContent, apiKey)
 }
 
-function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: string, pathLabel?: string): FileConfig {
+function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: string, pathLabel?: string, modelSelectionRequired = false): FileConfig {
+  const compatibleModelIds: Record<string, string> = {
+    kimi: 'k3.1-pro',
+    zhipu: 'glm-4.7',
+    deepseek: 'deepseek-v4-pro',
+    minimax: 'MiniMax-M3',
+    opencode_go: 'glm-5.3'
+  }
+  const compatibleModel = compatibleModelIds[platform]
+  const providerId = compatibleModel ? `sub2api-${platform}` : platform
   const provider: Record<string, any> = {
-    [platform]: {
+    [providerId]: {
       options: {
         baseURL: baseUrl,
         apiKey
@@ -1707,17 +1737,6 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     }
   }
   const geminiModels = {
-    'gemini-2.0-flash': {
-      name: 'Gemini 2.0 Flash',
-      limit: {
-        context: 1048576,
-        output: 65536
-      },
-      modalities: {
-        input: ['text', 'image', 'pdf'],
-        output: ['text']
-      }
-    },
     'gemini-2.5-flash': {
       name: 'Gemini 2.5 Flash',
       limit: {
@@ -1732,7 +1751,7 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     'gemini-2.5-pro': {
       name: 'Gemini 2.5 Pro',
       limit: {
-        context: 2097152,
+        context: 1048576,
         output: 65536
       },
       modalities: {
@@ -1768,23 +1787,6 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
         output: ['text']
       }
     },
-    'gemini-3-pro-preview': {
-      name: 'Gemini 3 Pro Preview',
-      limit: {
-        context: 1048576,
-        output: 65536
-      },
-      modalities: {
-        input: ['text', 'image', 'pdf'],
-        output: ['text']
-      },
-      options: {
-        thinking: {
-          budgetTokens: 24576,
-          type: 'enabled'
-        }
-      }
-    },
     'gemini-3.1-pro-preview': {
       name: 'Gemini 3.1 Pro Preview',
       limit: {
@@ -1805,6 +1807,8 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
   }
 
   const antigravityGeminiModels = {
+    'gemini-3.8-flash': { name: 'Gemini 3.8 Flash' },
+    'gemini-4-argon-high': { name: 'Gemini 4 Argon (High)' },
     'gemini-2.5-flash': {
       name: 'Gemini 2.5 Flash',
       limit: {
@@ -1943,6 +1947,8 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     }
   }
   const claudeModels = {
+    'claude-sonnet-5-5-high': { name: 'Claude Sonnet 5.5 (High)' },
+    'claude-opus-5-5-high': { name: 'Claude Opus 5.5 (High)' },
     'claude-fable-5-1': {
       name: 'Claude Fable 5.1',
       limit: {
@@ -2013,6 +2019,7 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
   // Align context_window with Grok Build official sample (docs.x.ai/build/settings) where known.
   // Image/video: grok-imagine-image / grok-imagine-video on media endpoints — not this list.
   const grokModels = {
+    'grok-4.7': { name: 'Grok 4.7' },
     'grok-4.5': {
       name: 'Grok 4.5',
       limit: { context: 500000, output: 64000 }
@@ -2079,10 +2086,14 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
   } else if (platform === 'openai') {
     provider[platform].models = openaiModels
   } else if (platform === 'grok') {
-    // Custom provider pointing at Sub2API OpenAI-compatible Responses/Chat endpoints.
-    provider[platform].npm = '@ai-sdk/openai-compatible'
+    // The OpenAI provider uses Responses by default, matching current Grok models.
+    provider[platform].npm = '@ai-sdk/openai'
     provider[platform].name = 'Grok via Sub2API'
     provider[platform].models = grokModels
+  } else if (compatibleModel) {
+    provider[providerId].npm = '@ai-sdk/openai-compatible'
+    provider[providerId].name = `${platform} via Sub2API`
+    provider[providerId].models = { [compatibleModel]: { name: compatibleModel } }
   }
 
   const agent =
@@ -2104,6 +2115,7 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
   const content = JSON.stringify(
     {
       provider,
+      ...(compatibleModel ? { model: `${providerId}/${compatibleModel}` } : {}),
       ...(agent ? { agent } : {}),
       $schema: 'https://opencode.ai/config.json'
     },
@@ -2114,7 +2126,13 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
   return {
     path: pathLabel ?? 'opencode.json',
     content,
-    hint: t('keys.useKeyModal.opencode.hint')
+    hint: t(modelSelectionRequired
+      ? 'keys.useKeyModal.opencode.routedHint'
+      : compatibleModel
+        ? 'keys.useKeyModal.opencode.compatibleHint'
+        : platform === 'grok'
+          ? 'keys.useKeyModal.opencode.grokHint'
+          : 'keys.useKeyModal.opencode.hint')
   }
 }
 

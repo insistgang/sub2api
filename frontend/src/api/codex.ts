@@ -10,7 +10,8 @@ function normalizeCodexBaseUrl(baseUrl: string): string {
   const fallback = typeof window !== 'undefined' ? window.location.origin : ''
   const value = (baseUrl || fallback).trim().replace(/\/+$/, '')
   if (!value) return '/v1'
-  return /\/v1$/i.test(value) ? value : `${value}/v1`
+  if (/\/v1$/i.test(value)) return value
+  return `${value.replace(/\/v1beta$/i, '')}/v1`
 }
 
 export function buildCodexModelsManifestUrl(

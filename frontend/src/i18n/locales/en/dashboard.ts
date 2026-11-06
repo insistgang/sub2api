@@ -202,12 +202,12 @@ export default {
         claudeCode: 'Claude Code',
         geminiCli: 'Gemini CLI',
         claudeNote: 'These environment variables will be active in the current terminal session. For permanent configuration, add them to ~/.bashrc, ~/.zshrc, or the appropriate configuration file.',
-        geminiNote: 'These environment variables will be active in the current terminal session. For permanent configuration, add them to ~/.bashrc, ~/.zshrc, or the appropriate configuration file.',
+        geminiNote: 'The default gemini-3.8-flash must be supported by the current Antigravity group and account. Environment variables apply to this terminal session; save them in your shell profile for persistence.',
       },
       gemini: {
         description: 'Add the following environment variables to your terminal profile or run directly in terminal to configure Gemini CLI access.',
-        modelComment: 'If you have Gemini 3 access, you can use: gemini-3-pro-preview',
-        note: 'These environment variables will be active in the current terminal session. For permanent configuration, add them to ~/.bashrc, ~/.zshrc, or the appropriate configuration file.',
+        modelComment: 'The model must be supported by the current group and account',
+        note: 'The default gemini-2.5-flash keeps existing accounts compatible; the 2.5 series may be limited to existing users. Use gemini-3.5-flash if your group and account support it. Environment variables apply to this terminal session; save them in your shell profile for persistence.',
       },
       grok: {
         description:
@@ -219,9 +219,9 @@ export default {
         codexConfigTomlHint:
           'Official Codex: wire_api = "responses" only; prefer env_key over experimental_bearer_token; supports_websockets = false for non-OpenAI gateways (Sub2API can still accept client WS and bridge to HTTP/SSE). Back up ~/.codex/config.toml before merge.',
         note:
-          'Export GROK_MODELS_BASE_URL and XAI_API_KEY, save the full config.toml (endpoints/auth/models/session/features) as ~/.grok/config.toml, run grok inspect, then /model grok-4.5 (or grok-build-0.1 for coding).',
+          'Export GROK_MODELS_BASE_URL and XAI_API_KEY, save the full config.toml (endpoints/auth/models/session/features) as ~/.grok/config.toml, run grok inspect, then /model grok-4.7 (or grok-build-0.1 for coding).',
         noteWindows:
-          'Set GROK_MODELS_BASE_URL and XAI_API_KEY, save the full config.toml as %USERPROFILE%\\.grok\\config.toml, run grok inspect, then /model grok-4.5 (or grok-build-0.1 for coding).',
+          'Set GROK_MODELS_BASE_URL and XAI_API_KEY, save the full config.toml as %USERPROFILE%\\.grok\\config.toml, run grok inspect, then /model grok-4.7 (or grok-build-0.1 for coding).',
         claudeNote:
           'Choose one method: terminal env for this session, or ~/.claude/settings.json for persistence. Do not commit files that contain your API key.',
         codexNote:
@@ -269,6 +269,9 @@ export default {
         title: 'OpenCode Example',
         subtitle: 'opencode.json',
         hint: 'Config path: ~/.config/opencode/opencode.json (or opencode.jsonc), create if not exists. Use default providers (openai/anthropic/google) or custom provider_id. API Key can be configured directly or via /connect command. This is an example, adjust models and options as needed.',
+        routedHint: 'This is an OpenAI-protocol compatibility example, not a promise that the static GPT list is authorized. Match the model and protocol to the current group catalog and routes; query the catalog before adapting this example for mixed or plugin groups.',
+        compatibleHint: 'This example uses one sample model through OpenAI-compatible Chat Completions. Verify that your group and account support the model before calling it; do not substitute model names from unrelated platforms.',
+        grokHint: 'This Grok example uses the OpenAI SDK Responses protocol. Models still require authorization from the current Grok group and account; images and video use separate media endpoints.',
       },
     },
     customKeyLabel: 'Custom Key',
