@@ -177,11 +177,19 @@ export default {
         noteWindows:
           '按 Win+R，输入 %userprofile%\\.codex 打开配置目录。如目录不存在，请先手动创建。'
       },
+      images: {
+        description: '通过 OpenAI 兼容图片接口文生图或参考图编辑。示例使用 gpt-image-2.6-sunburst。',
+        generate: '文生图 · generation.json',
+        edit: '参考图编辑 · edit.json',
+        save: '保存生成的图片 · generated.png',
+        note: '先设置密钥：macOS/Linux 运行 export SUB2API_API_KEY=\u0027你的密钥\u0027；Windows PowerShell 运行 $env:SUB2API_API_KEY=\u0027你的密钥\u0027。GPT-6.1 Terra 是文本模型，生图需单独指定图片模型。调用前确认 OpenAI 分组已开启图片生成，模型白名单、账号权限与余额允许使用。编辑需要当前目录下的 reference.png。结果通常在 data[0].b64_json 或 data[0].url；下方保存命令适用于 b64_json；编辑结果请将命令中的 generation.json 改成 edit.json，URL 请单独下载。请求会消耗额度。'
+      },
       cliTabs: {
         claudeCode: 'Claude Code',
         geminiCli: 'Gemini CLI',
         codexCli: 'Codex CLI',
         codexCliWs: 'Codex CLI (WebSocket)',
+        images: '图片生成',
         grokCli: 'Grok CLI',
         systemOne: 'System One',
         opencode: 'OpenCode'

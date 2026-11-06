@@ -40,6 +40,40 @@ describe('UseKeyModal', () => {
     saveAsMock.mockClear()
   })
 
+  it('provides separate generation and edit examples for OpenAI keys without embedding the secret', async () => {
+    const wrapper = mount(UseKeyModal, {
+      props: { show: true, apiKey: 'sk-secret-test', baseUrl: 'https://example.com/v1/', platform: 'openai' },
+      global: { stubs: { BaseDialog: { template: '<div><slot /><slot name="footer" /></div>' }, Icon: { template: '<span />' } } }
+    })
+    const tab = wrapper.findAll('button').find(button => button.text().includes('keys.useKeyModal.cliTabs.images'))
+    expect(tab).toBeDefined()
+    await tab!.trigger('click')
+    let blocks = wrapper.findAll('pre code').map(code => code.text())
+    expect(blocks).toHaveLength(3)
+    expect(blocks[0]).toContain('https://example.com/v1/images/generations')
+    expect(blocks[0]).toContain('gpt-image-2.6-sunburst')
+    expect(blocks[0]).toContain('SUB2API_API_KEY')
+    expect(blocks[1]).toContain('https://example.com/v1/images/edits')
+    expect(blocks[1]).toContain('reference.png')
+    expect(blocks[2]).toContain('generated.png')
+    expect(blocks[2]).toContain('b64_json')
+    expect(blocks.join('\n')).not.toContain('sk-secret-test')
+    expect(wrapper.text()).toContain('keys.useKeyModal.images.note')
+    await wrapper.findAll('button').find(button => button.text().trim() === 'Windows')!.trigger('click')
+    blocks = wrapper.findAll('pre code').map(code => code.text())
+    expect(blocks[0]).toContain('$env:SUB2API_API_KEY')
+    expect(blocks[1]).toContain('curl.exe')
+    expect(blocks.join('\n')).not.toContain('sk-secret-test')
+  })
+
+  it('does not advertise OpenAI image examples for other platform keys', () => {
+    const wrapper = mount(UseKeyModal, {
+      props: { show: true, apiKey: 'sk-test', baseUrl: 'https://example.com', platform: 'gemini' },
+      global: { stubs: { BaseDialog: { template: '<div><slot /></div>' }, Icon: { template: '<span />' } } }
+    })
+    expect(wrapper.findAll('button').some(button => button.text().includes('keys.useKeyModal.cliTabs.images'))).toBe(false)
+  })
+
   it('shows only Claude Code for Claude Code-only groups', async () => {
     const wrapper = mount(UseKeyModal, {
       props: {
@@ -403,8 +437,8 @@ describe('UseKeyModal', () => {
     const configToml = codeBlocks.find((content) => content.includes('model_provider = "OpenAI"'))
 
     expect(configToml).toBeDefined()
-    expect(configToml).toContain('model = "gpt-5.5"')
-    expect(configToml).toContain('review_model = "gpt-5.5"')
+    expect(configToml).toContain('model = "gpt-6.1-terra"')
+    expect(configToml).toContain('review_model = "gpt-6.1-terra"')
     expect(configToml).not.toContain('model = "gpt-5.4"')
     expect(configToml).not.toContain('model_context_window')
     expect(configToml).not.toContain('model_auto_compact_token_limit')
@@ -547,8 +581,8 @@ describe('UseKeyModal', () => {
     const configToml = codeBlocks.find((content) => content.includes('supports_websockets = true'))
 
     expect(configToml).toBeDefined()
-    expect(configToml).toContain('model = "gpt-5.5"')
-    expect(configToml).toContain('review_model = "gpt-5.5"')
+    expect(configToml).toContain('model = "gpt-6.1-terra"')
+    expect(configToml).toContain('review_model = "gpt-6.1-terra"')
     expect(configToml).not.toContain('model = "gpt-5.4"')
     expect(configToml).not.toContain('model_context_window')
     expect(configToml).not.toContain('model_auto_compact_token_limit')
@@ -715,12 +749,13 @@ describe('UseKeyModal', () => {
 
     const parsed = JSON.parse(wrapper.find('pre code').text())
     const models = parsed.provider.openai.models
-    for (const model of ['gpt-5.6', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-6.1-sol', 'gpt-6-sol', 'gpt-6-luna']) {
+    for (const model of ['gpt-5.6', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-6.1-sol', 'gpt-6.1-terra', 'gpt-6-sol', 'gpt-6-luna']) {
       expect(models[model]).toBeDefined()
       expect(models[model].variants).toHaveProperty('max')
       expect(models[model].variants).toHaveProperty('xhigh')
     }
     expect(models['gpt-5.6'].name).toBe('GPT-5.6 (Sol)')
+    expect(models['gpt-6.1-terra'].variants).not.toHaveProperty('none')
     expect(models['gpt-6.1-sol'].variants).not.toHaveProperty('none')
     expect(models['gpt-6-sol'].variants).toHaveProperty('none')
     expect(models['gpt-6-luna'].limit).toEqual({ context: 1050000, output: 128000 })
@@ -961,7 +996,7 @@ describe('UseKeyModal', () => {
       text: async () => JSON.stringify({
         models: [
           { slug: 'claude-opus-4-8' },
-          { slug: 'gpt-5.5' }
+          { slug: 'gpt-6.1-terra' }
         ]
       })
     }))
@@ -996,8 +1031,8 @@ describe('UseKeyModal', () => {
     const config = wrapper.findAll('pre code')
       .map((code) => code.text())
       .find((content) => content.includes('[model_providers.sub2api]'))
-    expect(config).toContain('model = "gpt-5.5"')
-    expect(config).toContain('review_model = "gpt-5.5"')
+    expect(config).toContain('model = "gpt-6.1-terra"')
+    expect(config).toContain('review_model = "gpt-6.1-terra"')
   })
 
   it('offers remote and optional file catalogs for OpenAI in both transport modes and on both platforms', async () => {
@@ -1029,7 +1064,7 @@ describe('UseKeyModal', () => {
         const configToml = wrapper.findAll('pre code')
           .map((code) => code.text())
           .find((content) => content.includes('model_provider = "OpenAI"'))
-        expect(configToml).toContain('model = "gpt-5.5"')
+        expect(configToml).toContain('model = "gpt-6.1-terra"')
         expect(configToml).toContain('[model_providers.OpenAI]\nname = "OpenAI"\nbase_url = "https://example.com/v1"\nmodel_catalog_url = "https://example.com/v1/models"')
         expect(configToml).not.toContain('model_catalog_json')
         expect(configToml).toContain('requires_openai_auth = true')

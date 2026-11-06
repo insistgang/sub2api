@@ -471,6 +471,7 @@ const clientTabs = computed((): TabConfig[] => {
       const tabs: TabConfig[] = [
         { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
         { id: 'codex-ws', label: t('keys.useKeyModal.cliTabs.codexCliWs'), icon: TerminalIcon },
+        { id: 'images', label: t('keys.useKeyModal.cliTabs.images'), icon: SparkleIcon },
       ]
       if (props.allowMessagesDispatch) {
         tabs.push({ id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon })
@@ -541,7 +542,7 @@ const showCodexAuthMode = computed(() =>
 
 const currentTabs = computed(() => {
   if (!showShellTabs.value) return []
-  if (activeClientTab.value === 'codex' || activeClientTab.value === 'codex-ws' || activeClientTab.value === 'grok') {
+  if (activeClientTab.value === 'codex' || activeClientTab.value === 'codex-ws' || activeClientTab.value === 'grok' || activeClientTab.value === 'images') {
     return openaiTabs
   }
   return shellTabs
@@ -558,6 +559,9 @@ const platformDescription = computed(() => {
   }
   switch (props.platform) {
     case 'openai':
+      if (activeClientTab.value === 'images') {
+        return t('keys.useKeyModal.images.description')
+      }
       if (activeClientTab.value === 'claude') {
         return t('keys.useKeyModal.description')
       }
@@ -604,6 +608,9 @@ const platformNote = computed(() => {
   }
   switch (props.platform) {
     case 'openai':
+      if (activeClientTab.value === 'images') {
+        return t('keys.useKeyModal.images.note')
+      }
       if (activeClientTab.value === 'claude') {
         return t('keys.useKeyModal.note')
       }
@@ -778,6 +785,9 @@ const currentFiles = computed((): FileConfig[] => {
     case 'typesafe':
       return [generateSystemOneCurl(baseRoot, apiKey)]
     case 'openai':
+      if (activeClientTab.value === 'images') {
+        return generateImageFiles(apiBase)
+      }
       if (activeClientTab.value === 'claude') {
         // Anthropic clients append /v1/messages themselves.
         return generateAnthropicFiles(baseRoot, apiKey)
@@ -1023,11 +1033,41 @@ ${keyword('$env:')}${variable('GEMINI_MODEL')}${operator('=')}${string(`"${model
   return { path, content, highlighted }
 }
 
+const DEFAULT_OPENAI_MODEL = 'gpt-6.1-terra'
+
+function generateImageFiles(baseUrl: string): FileConfig[] {
+  const windows = activeTab.value === 'windows'
+  const generate = windows
+    ? `$body = @{ model = 'gpt-image-2.6-sunburst'; prompt = 'A lighthouse by the sea, watercolor'; size = '1024x1024'; quality = 'auto'; n = 1; response_format = 'b64_json' } | ConvertTo-Json -Compress
+Invoke-RestMethod -Method Post -Uri '${baseUrl}/images/generations' -Headers @{ Authorization = "Bearer $env:SUB2API_API_KEY" } -ContentType 'application/json' -Body $body | ConvertTo-Json -Depth 20 | Set-Content -Encoding UTF8 generation.json`
+    : `curl --fail-with-body --max-time 900 '${baseUrl}/images/generations' \\
+  -H "Authorization: Bearer $SUB2API_API_KEY" \\
+  -H 'Content-Type: application/json' \\
+  -d '{"model":"gpt-image-2.6-sunburst","prompt":"A lighthouse by the sea, watercolor","size":"1024x1024","quality":"auto","n":1,"response_format":"b64_json"}' > generation.json`
+  const edit = windows
+    ? `curl.exe --fail-with-body --max-time 900 '${baseUrl}/images/edits' -H "Authorization: Bearer $env:SUB2API_API_KEY" -F 'model=gpt-image-2.6-sunburst' -F 'prompt=Keep the subject; change the background to snowy mountains' -F 'image=@reference.png;type=image/png' -F 'size=1024x1024' -F 'response_format=b64_json' -o edit.json`
+    : `curl --fail-with-body --max-time 900 '${baseUrl}/images/edits' \\
+  -H "Authorization: Bearer $SUB2API_API_KEY" \\
+  -F 'model=gpt-image-2.6-sunburst' \\
+  -F 'prompt=Keep the subject; change the background to snowy mountains' \\
+  -F 'image=@reference.png;type=image/png' -F 'size=1024x1024' \\
+  -F 'response_format=b64_json' > edit.json`
+  const save = windows
+    ? `$data = Get-Content -Raw generation.json | ConvertFrom-Json
+[IO.File]::WriteAllBytes('generated.png', [Convert]::FromBase64String($data.data[0].b64_json))`
+    : `python3 -c 'import base64,json; from pathlib import Path; data=json.load(open("generation.json", encoding="utf-8-sig")); Path("generated.png").write_bytes(base64.b64decode(data["data"][0]["b64_json"]))'`
+  return [
+    { path: t('keys.useKeyModal.images.generate'), content: generate },
+    { path: t('keys.useKeyModal.images.edit'), content: edit },
+    { path: t('keys.useKeyModal.images.save'), content: save }
+  ]
+}
+
 function generateOpenAIFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
 
-  const model = selectCodexCatalogModel('gpt-5.5')
+  const model = selectCodexCatalogModel(DEFAULT_OPENAI_MODEL)
   const reasoningEffortLine = codexReasoningEffortTomlLine(model)
 
   // config.toml content
@@ -1309,7 +1349,7 @@ function generateRoutedCodexFiles(
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
   const preferredModels: Partial<Record<GroupPlatform, string>> = {
-    openai: 'gpt-5.5',
+    openai: DEFAULT_OPENAI_MODEL,
     anthropic: 'claude-sonnet-4-6',
     gemini: 'gemini-2.5-pro',
     antigravity: 'claude-sonnet-4-6',
@@ -1319,7 +1359,7 @@ function generateRoutedCodexFiles(
     deepseek: 'deepseek-v4-pro',
     minimax: 'MiniMax-M3',
     opencode_go: 'glm-5.3',
-    composite: 'gpt-5.5'
+    composite: DEFAULT_OPENAI_MODEL
   }
   const preferredModel = preferredModels[platform] || ''
   const model = selectCodexCatalogModel(preferredModel)
@@ -1375,7 +1415,7 @@ supports_websockets = false${codexModelCatalogMode.value === 'remote' ? '\n\n[fe
 function generateOpenAIWsFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
-  const model = selectCodexCatalogModel('gpt-5.5')
+  const model = selectCodexCatalogModel(DEFAULT_OPENAI_MODEL)
   const reasoningEffortLine = codexReasoningEffortTomlLine(model)
 
   // config.toml content with WebSocket v2
@@ -1410,6 +1450,11 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     }
   }
   const openaiModels = {
+    'gpt-6.1-terra': {
+      name: 'GPT-6.1 Terra',
+      options: { store: false },
+      variants: { low: {}, medium: {}, high: {}, xhigh: {}, max: {} }
+    },
     'gpt-6': {
       name: 'GPT-6 (Astra)',
       limit: {

@@ -176,11 +176,19 @@ export default {
         note: 'Make sure the config directory exists. macOS/Linux users can run mkdir -p ~/.codex to create it.',
         noteWindows: 'Press Win+R and enter %userprofile%\\.codex to open the config directory. Create it manually if it does not exist.',
       },
+      images: {
+        description: 'Generate or edit images through the OpenAI-compatible Images API. These examples use gpt-image-2.6-sunburst.',
+        generate: 'Generate · generation.json',
+        edit: 'Edit reference image · edit.json',
+        save: 'Save generated image · generated.png',
+        note: 'First set the key: use export SUB2API_API_KEY=\u0027your-key\u0027 on macOS/Linux or $env:SUB2API_API_KEY=\u0027your-key\u0027 in Windows PowerShell. GPT-6.1 Terra is a text model; use a separate image model for image requests. Ensure image generation is enabled for the OpenAI group and that the model allowlist, account permissions and balance permit the request. Editing requires reference.png in the current directory. Results are normally in data[0].b64_json or data[0].url; the save command below handles b64_json; replace generation.json with edit.json to save an edit, and download URLs separately. Requests consume credits.'
+      },
       cliTabs: {
         claudeCode: 'Claude Code',
         geminiCli: 'Gemini CLI',
         codexCli: 'Codex CLI',
         codexCliWs: 'Codex CLI (WebSocket)',
+        images: 'Image generation',
         grokCli: 'Grok CLI',
         systemOne: 'System One',
         opencode: 'OpenCode',
