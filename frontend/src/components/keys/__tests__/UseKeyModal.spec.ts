@@ -49,21 +49,73 @@ describe('UseKeyModal', () => {
     expect(tab).toBeDefined()
     await tab!.trigger('click')
     let blocks = wrapper.findAll('pre code').map(code => code.text())
-    expect(blocks).toHaveLength(3)
-    expect(blocks[0]).toContain('https://example.com/v1/images/generations')
-    expect(blocks[0]).toContain('gpt-image-2.6-sunburst')
+    expect(blocks).toHaveLength(4)
+    expect(blocks[0]).toContain('export SUB2API_API_KEY=')
+    expect(blocks[0]).not.toContain('curl')
+    expect(blocks[1]).toContain('https://example.com/v1/images/generations')
+    expect(blocks[1]).toContain('gpt-image-2.6-sunburst')
     expect(blocks[0]).toContain('SUB2API_API_KEY')
-    expect(blocks[1]).toContain('https://example.com/v1/images/edits')
-    expect(blocks[1]).toContain('reference.png')
-    expect(blocks[2]).toContain('generated.png')
-    expect(blocks[2]).toContain('b64_json')
+    expect(blocks[2]).toContain('https://example.com/v1/images/edits')
+    expect(blocks[2]).toContain('reference.png')
+    expect(blocks[3]).toContain('generated.png')
+    expect(blocks[3]).toContain('b64_json')
     expect(blocks.join('\n')).not.toContain('sk-secret-test')
     expect(wrapper.text()).toContain('keys.useKeyModal.images.note')
     await wrapper.findAll('button').find(button => button.text().trim() === 'Windows')!.trigger('click')
     blocks = wrapper.findAll('pre code').map(code => code.text())
     expect(blocks[0]).toContain('$env:SUB2API_API_KEY')
-    expect(blocks[1]).toContain('curl.exe')
+    expect(blocks[0]).not.toContain('Invoke-RestMethod')
+    expect(blocks[1]).toContain('-TimeoutSec 900')
+    expect(blocks[2]).toContain('curl.exe')
     expect(blocks.join('\n')).not.toContain('sk-secret-test')
+  })
+
+  it('copies image preparation without making a request or exposing the selected key', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const wrapper = mount(UseKeyModal, {
+      props: { show: true, apiKey: 'sk-private-image-test', baseUrl: 'https://example.com/v1', platform: 'openai' },
+      global: { stubs: { BaseDialog: { template: '<div><slot /></div>' }, Icon: { template: '<span />' } } }
+    })
+    await wrapper.findAll('button').find(button => button.text().includes('keys.useKeyModal.cliTabs.images'))!.trigger('click')
+    const setup = wrapper.find('pre code').text()
+    expect(setup).not.toMatch(/curl|Invoke-RestMethod/)
+    await wrapper.findAll('button').find(button => button.text().trim() === 'keys.useKeyModal.copy')!.trigger('click')
+    expect(copyToClipboardMock).toHaveBeenCalledWith(setup, 'keys.copied')
+    expect(setup).toContain('SUB2API_API_KEY')
+    expect(setup).not.toContain('sk-private-image-test')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['https://us.insistgang.top', 'https://us.insistgang.top/v1', true],
+    ['https://us.insistgang.top/v1/', 'https://us.insistgang.top/v1', true],
+    ['https://api.insistgang.top/v1', 'https://api.insistgang.top/v1', true],
+    ['https://example.com/proxy/v1/', 'https://example.com/proxy/v1', false]
+  ] as const)('keeps image connection instructions and commands aligned for %s', async (baseUrl, expectedBase, showServiceDomains) => {
+    const wrapper = mount(UseKeyModal, {
+      props: { show: true, apiKey: 'sk-domain-test', baseUrl, platform: 'openai' },
+      global: { stubs: { BaseDialog: { template: '<div><slot /></div>' }, Icon: { template: '<span />' } } }
+    })
+    await wrapper.findAll('button').find(button => button.text().includes('keys.useKeyModal.cliTabs.images'))!.trigger('click')
+    const connectionInfo = wrapper.find('[data-testid="image-connection-info"]')
+    expect(connectionInfo.exists()).toBe(true)
+    const endpoints = connectionInfo.findAll('code').map(code => code.text())
+    expect(endpoints).toEqual([
+      expectedBase,
+      `${expectedBase}/images/generations`,
+      `${expectedBase}/images/edits`,
+      `${expectedBase}/models`
+    ])
+    const blocks = wrapper.findAll('pre code').map(code => code.text())
+    expect(blocks[1]).toContain(`${expectedBase}/images/generations`)
+    expect(blocks[2]).toContain(`${expectedBase}/images/edits`)
+    expect(wrapper.find('[data-testid="image-service-domains"]').exists()).toBe(showServiceDomains)
+    if (showServiceDomains) {
+      const domains = wrapper.get('[data-testid="image-service-domains"]').text()
+      expect(domains).toContain('https://us.insistgang.top/v1')
+      expect(domains).toContain('https://api.insistgang.top/v1')
+    }
   })
 
   it('does not advertise OpenAI image examples for other platform keys', () => {

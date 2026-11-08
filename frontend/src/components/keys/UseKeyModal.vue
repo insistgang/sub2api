@@ -133,6 +133,67 @@
           </nav>
         </div>
 
+        <section
+          v-if="platform === 'openai' && activeClientTab === 'images'"
+          class="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/50"
+        >
+          <div>
+            <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.images.connectionTitle') }}
+            </h3>
+            <dl data-testid="image-connection-info" class="mt-2 space-y-2 text-xs">
+              <div>
+                <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.images.baseUrlLabel') }}</dt>
+                <dd class="mt-0.5 break-all text-gray-800 dark:text-gray-200"><code>{{ apiBaseUrl }}</code></dd>
+              </div>
+              <div>
+                <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.images.generateEndpoint') }}</dt>
+                <dd class="mt-0.5 break-all text-gray-800 dark:text-gray-200"><code>{{ apiBaseUrl }}/images/generations</code></dd>
+              </div>
+              <div>
+                <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.images.editEndpoint') }}</dt>
+                <dd class="mt-0.5 break-all text-gray-800 dark:text-gray-200"><code>{{ apiBaseUrl }}/images/edits</code></dd>
+              </div>
+              <div>
+                <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.images.modelsEndpoint') }}</dt>
+                <dd class="mt-0.5 break-all text-gray-800 dark:text-gray-200"><code>{{ apiBaseUrl }}/models</code></dd>
+              </div>
+            </dl>
+            <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+              {{ t('keys.useKeyModal.images.baseUrlHint') }}
+            </p>
+            <div v-if="showImageServiceDomains" data-testid="image-service-domains" class="mt-2 space-y-1 text-xs leading-5 text-gray-600 dark:text-gray-400">
+              <p>{{ t('keys.useKeyModal.images.mainDomain') }} <code class="break-all">https://us.insistgang.top/v1</code></p>
+              <p>{{ t('keys.useKeyModal.images.compatDomain') }} <code class="break-all">https://api.insistgang.top/v1</code></p>
+              <p>{{ t('keys.useKeyModal.images.domainHint') }}</p>
+            </div>
+          </div>
+          <div>
+            <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.images.beforeStartTitle') }}
+            </h3>
+            <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-400">
+              {{ t('keys.useKeyModal.images.beforeStart') }}
+            </p>
+          </div>
+          <div>
+            <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.images.modelsTitle') }}
+            </h3>
+            <ul class="mt-2 flex flex-wrap gap-2 text-xs text-gray-700 dark:text-gray-300">
+              <li class="rounded-md border border-primary-200 bg-primary-50 px-2 py-1.5 dark:border-primary-800 dark:bg-primary-900/20">
+                <code>gpt-image-2.6-sunburst</code>
+                <span class="ml-2 text-primary-700 dark:text-primary-300">{{ t('keys.useKeyModal.images.defaultModel') }}</span>
+              </li>
+              <li class="rounded-md border border-gray-200 px-2 py-1.5 dark:border-dark-600"><code>gpt-image-2.5-flare</code></li>
+              <li class="rounded-md border border-gray-200 px-2 py-1.5 dark:border-dark-600"><code>gpt-image-2.5-sunburst</code></li>
+            </ul>
+            <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+              {{ t('keys.useKeyModal.images.modelsHint') }}
+            </p>
+          </div>
+        </section>
+
         <!-- Code Blocks (Stacked for multi-file platforms) -->
         <div class="space-y-4">
           <div
@@ -170,6 +231,30 @@
               <pre class="p-4 text-sm font-mono text-gray-100 overflow-x-auto"><code v-if="file.highlighted" v-html="file.highlighted"></code><code v-else v-text="file.content"></code></pre>
             </div>
           </div>
+        </div>
+
+        <div v-if="platform === 'openai' && activeClientTab === 'images'" class="space-y-3">
+          <details class="rounded-lg border border-gray-200 dark:border-dark-700">
+            <summary class="cursor-pointer px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.images.clientTitle') }}
+            </summary>
+            <div class="space-y-2 px-4 pb-4 text-sm leading-6 text-gray-600 dark:text-gray-400">
+              <p>{{ t('keys.useKeyModal.images.clientHint') }}</p>
+              <p>{{ t('keys.useKeyModal.images.gifHint') }}</p>
+            </div>
+          </details>
+          <details class="rounded-lg border border-gray-200 dark:border-dark-700">
+            <summary class="cursor-pointer px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.images.troubleshootingTitle') }}
+            </summary>
+            <ul class="space-y-2 px-4 pb-4 text-sm leading-6 text-gray-600 dark:text-gray-400">
+              <li>{{ t('keys.useKeyModal.images.permissionError') }}</li>
+              <li>{{ t('keys.useKeyModal.images.modelError') }}</li>
+              <li>{{ t('keys.useKeyModal.images.requestError') }}</li>
+              <li>{{ t('keys.useKeyModal.images.rateLimitError') }}</li>
+              <li>{{ t('keys.useKeyModal.images.connectionError') }}</li>
+            </ul>
+          </details>
         </div>
 
         <section
@@ -317,6 +402,14 @@ const { copyToClipboard: clipboardCopy } = useClipboard()
 const copiedIndex = ref<number | null>(null)
 const activeTab = ref<string>('unix')
 const activeClientTab = ref<string>('claude')
+const normalizedBaseRoot = computed(() =>
+  (props.baseUrl || window.location.origin).trim().replace(/\/+$/, '').replace(/\/(?:v1|v1beta)$/i, '')
+)
+const apiBaseUrl = computed(() => `${normalizedBaseRoot.value}/v1`)
+const showImageServiceDomains = computed(() => [
+  'https://us.insistgang.top/v1',
+  'https://api.insistgang.top/v1'
+].includes(apiBaseUrl.value))
 type CodexAuthMode = 'legacy' | 'api-key'
 const codexAuthMode = ref<CodexAuthMode>('legacy')
 type CodexModelManifestState = 'idle' | 'loading' | 'ready' | 'error'
@@ -743,14 +836,13 @@ const comment = (value: string) => wrapToken('text-slate-500', value)
 // Syntax highlighting helpers
 // Generate file configs based on platform and active tab
 const currentFiles = computed((): FileConfig[] => {
-  const baseUrl = props.baseUrl || window.location.origin
   const apiKey = props.apiKey
-  const baseRoot = baseUrl.trim().replace(/\/+$/, '').replace(/\/(?:v1|v1beta)$/i, '')
+  const baseRoot = normalizedBaseRoot.value
   const ensureV1 = (value: string) => {
     const trimmed = value.replace(/\/+$/, '')
     return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
   }
-  const apiBase = ensureV1(baseRoot)
+  const apiBase = apiBaseUrl.value
   const antigravityBase = ensureV1(`${baseRoot}/antigravity`)
   const antigravityGeminiBase = (() => {
     const trimmed = `${baseRoot}/antigravity`.replace(/\/+$/, '')
@@ -1049,9 +1141,13 @@ const DEFAULT_OPENAI_MODEL = 'gpt-6.1-terra'
 
 function generateImageFiles(baseUrl: string): FileConfig[] {
   const windows = activeTab.value === 'windows'
+  const keyPlaceholder = t('keys.useKeyModal.images.keyPlaceholder')
+  const setup = windows
+    ? `$env:SUB2API_API_KEY='${keyPlaceholder}'`
+    : `export SUB2API_API_KEY='${keyPlaceholder}'`
   const generate = windows
     ? `$body = @{ model = 'gpt-image-2.6-sunburst'; prompt = 'A lighthouse by the sea, watercolor'; size = '1024x1024'; quality = 'auto'; n = 1; response_format = 'b64_json' } | ConvertTo-Json -Compress
-Invoke-RestMethod -Method Post -Uri '${baseUrl}/images/generations' -Headers @{ Authorization = "Bearer $env:SUB2API_API_KEY" } -ContentType 'application/json' -Body $body | ConvertTo-Json -Depth 20 | Set-Content -Encoding UTF8 generation.json`
+Invoke-RestMethod -Method Post -Uri '${baseUrl}/images/generations' -Headers @{ Authorization = "Bearer $env:SUB2API_API_KEY" } -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($body)) -TimeoutSec 900 | ConvertTo-Json -Depth 20 | Set-Content -Encoding UTF8 generation.json`
     : `curl --fail-with-body --max-time 900 '${baseUrl}/images/generations' \\
   -H "Authorization: Bearer $SUB2API_API_KEY" \\
   -H 'Content-Type: application/json' \\
@@ -1069,9 +1165,10 @@ Invoke-RestMethod -Method Post -Uri '${baseUrl}/images/generations' -Headers @{ 
 [IO.File]::WriteAllBytes('generated.png', [Convert]::FromBase64String($data.data[0].b64_json))`
     : `python3 -c 'import base64,json; from pathlib import Path; data=json.load(open("generation.json", encoding="utf-8-sig")); Path("generated.png").write_bytes(base64.b64decode(data["data"][0]["b64_json"]))'`
   return [
-    { path: t('keys.useKeyModal.images.generate'), content: generate },
-    { path: t('keys.useKeyModal.images.edit'), content: edit },
-    { path: t('keys.useKeyModal.images.save'), content: save }
+    { path: t('keys.useKeyModal.images.setup'), content: setup, hint: t('keys.useKeyModal.images.setupHint', { baseUrl }) },
+    { path: t('keys.useKeyModal.images.generate'), content: generate, hint: t('keys.useKeyModal.images.generateHint') },
+    { path: t('keys.useKeyModal.images.edit'), content: edit, hint: t('keys.useKeyModal.images.editHint') },
+    { path: t('keys.useKeyModal.images.save'), content: save, hint: t('keys.useKeyModal.images.saveHint') }
   ]
 }
 
