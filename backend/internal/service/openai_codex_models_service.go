@@ -452,6 +452,19 @@ func newConfiguredCodexModelDescriptor(modelID string) configuredCodexModelDescr
 		InputModalities:                   []string{"text"},
 	}
 
+	if strings.EqualFold(modelID, "MiniMax-M3.1-Flash") {
+		defaultReasoningLevel := "max"
+		descriptor.Description = "MiniMax M3.1 Flash routed through Sub2API."
+		descriptor.DefaultReasoningLevel = &defaultReasoningLevel
+		descriptor.SupportedReasoningLevels = []configuredCodexReasoningLevel{
+			{Effort: "low", Description: configuredCodexReasoningLevelDescription("low")},
+			{Effort: "medium", Description: configuredCodexReasoningLevelDescription("medium")},
+			{Effort: "high", Description: configuredCodexReasoningLevelDescription("high")},
+			{Effort: "xhigh", Description: configuredCodexReasoningLevelDescription("xhigh")},
+			{Effort: "max", Description: configuredCodexReasoningLevelDescription("max")},
+		}
+	}
+
 	if isDeepSeekCodexModel(modelID) {
 		defaultReasoningLevel := "high"
 		descriptor.DisplayName = deepSeekCodexDisplayName(modelID)
@@ -534,6 +547,13 @@ func newConfiguredCodexModelDescriptor(modelID string) configuredCodexModelDescr
 		}
 	}
 
+	if openai.IsGPT61TerraModelSpelling(modelID) {
+		if err := json.Unmarshal(openai.CodexGPT61TerraMetadata, &descriptor); err != nil {
+			panic(err)
+		}
+		descriptor.Slug = modelID
+		descriptor.officialMetadata = openai.CodexGPT61TerraMetadata
+	}
 	if openai.IsGPT61SolModelSpelling(modelID) {
 		if err := json.Unmarshal(openai.CodexGPT61SolMetadata, &descriptor); err != nil {
 			panic(err)
@@ -2080,6 +2100,7 @@ func CodexModelsManifestETag(body []byte) string {
 }
 
 var apiKeyCodexModelsWithoutResponsesLite = map[string]struct{}{
+	"gpt-6.1-terra": {},
 	"gpt-6.1-sol":   {},
 	"gpt-6-astra":   {},
 	"gpt-5.6-sol":   {},

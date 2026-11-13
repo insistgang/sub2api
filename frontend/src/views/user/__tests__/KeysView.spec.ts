@@ -173,6 +173,7 @@ const DataTableStub = {
           <slot name="cell-id" :value="row.id" :row="row" />
         </div>
         <slot name="cell-name" :value="row.name" :row="row" />
+        <div data-test="key-usage"><slot name="cell-usage" :row="row" /></div>
         <slot name="cell-actions" :row="row" />
         <div data-test="current-concurrency">
           <slot name="cell-current_concurrency" :value="row.current_concurrency" :row="row" />
@@ -295,6 +296,74 @@ describe('user KeysView column settings', () => {
     getAvailableGroups.mockResolvedValue([])
     getUserGroupRates.mockResolvedValue({})
     isCurrentStep.mockReturnValue(false)
+  })
+
+  it('shows standard costs rather than discounted deductions in the usage column', async () => {
+    getDashboardApiKeysUsage.mockResolvedValue({ stats: { '1': {
+      api_key_id: 1,
+      today_cost: 0.25,
+      total_cost: 2.5,
+      today_actual_cost: 0.05,
+      total_actual_cost: 0.5,
+    } } })
+    const wrapper = await mountView()
+    const usage = wrapper.get('[data-test="key-usage"]').text()
+    expect(usage).toContain('¥0.2500')
+    expect(usage).toContain('¥2.5000')
+    expect(usage).not.toContain('¥0.0500')
+    expect(usage).not.toContain('¥0.5000')
+    wrapper.unmount()
+  })
+
+  it('shows yuan throughout quota editing and preserves unchanged API amounts precisely', async () => {
+    const key = {
+      ...createApiKey(), group_id: 1, quota: 10.123456789, quota_used: 2.25,
+      rate_limit_5h: 1.23456789, rate_limit_1d: 2.34567891, rate_limit_7d: 3.45678912,
+      usage_5h: 0.25, usage_1d: 0.5, usage_7d: 0.75,
+    }
+    listKeys.mockResolvedValueOnce({ items: [key], total: 1, page: 1, page_size: 20, pages: 1 })
+    updateKey.mockResolvedValue(key)
+    const wrapper = await mountView()
+    expect(wrapper.get('[data-test="key-usage"]').text()).toContain('¥2.25 / ¥10.12')
+    await getButtonByText(wrapper, 'common.edit').trigger('click')
+    const dialog = wrapper.get('[role="dialog"]')
+    expect(dialog.text()).not.toContain('$')
+    expect(dialog.findAll('input[type="number"]').map((input) => (input.element as HTMLInputElement).value))
+      .toEqual(['10.123456789', '1.23456789', '2.34567891', '3.45678912'])
+    expect(dialog.findAll('input[type="number"]').every((input) =>
+      !(input.element as HTMLInputElement).validity.stepMismatch)).toBe(true)
+
+    await wrapper.get('#key-form').trigger('submit')
+    await flushPromises()
+    expect(updateKey).toHaveBeenCalledWith(key.id, expect.objectContaining({
+      quota: key.quota,
+      rate_limit_5h: key.rate_limit_5h,
+      rate_limit_1d: key.rate_limit_1d,
+      rate_limit_7d: key.rate_limit_7d,
+    }))
+    wrapper.unmount()
+  })
+
+  it('sends edited yuan quotas and rate limits in API units', async () => {
+    const key = {
+      ...createApiKey(), group_id: 1, quota: 10,
+      rate_limit_5h: 1, rate_limit_1d: 2, rate_limit_7d: 3,
+    }
+    listKeys.mockResolvedValueOnce({ items: [key], total: 1, page: 1, page_size: 20, pages: 1 })
+    updateKey.mockResolvedValue(key)
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'common.edit').trigger('click')
+    const inputs = wrapper.get('[role="dialog"]').findAll('input[type="number"]')
+    await inputs[0].setValue('25.75')
+    await inputs[1].setValue('0')
+    await inputs[2].setValue('8.125')
+    await inputs[3].setValue('9.875')
+    await wrapper.get('#key-form').trigger('submit')
+    await flushPromises()
+    expect(updateKey).toHaveBeenCalledWith(key.id, expect.objectContaining({
+      quota: 25.75, rate_limit_5h: 0, rate_limit_1d: 8.125, rate_limit_7d: 9.875,
+    }))
+    wrapper.unmount()
   })
 
   it.each([

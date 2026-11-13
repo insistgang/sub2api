@@ -15,6 +15,10 @@ function mountInput(value: number | null = null) {
 }
 
 describe('recharge amount input', () => {
+  it('labels the input with the actual selected payment currency', () => {
+    expect(mountInput(10).text()).toContain('¥')
+    expect(mount(AmountInput, { props: { modelValue: 10, currency: 'USD' } }).text()).toContain('$')
+  })
   it.each(['10abc', '10.555', '-10', '1e2'])('restores the accepted amount after rejecting %s', async (value) => {
     const wrapper = mountInput(10)
     const input = wrapper.get('input')
@@ -60,11 +64,11 @@ describe('recharge bonus hints on quick amounts', () => {
     const second = wrapper.get('[data-testid="quick-amount-500"]')
 
     expect(below.find('[data-testid="quick-amount-bonus-badge"]').exists()).toBe(false)
-    expect(below.get('[data-testid="quick-amount-credited"]').text()).toContain('$50.00')
+    expect(below.get('[data-testid="quick-amount-credited"]').text()).toContain('¥50.00')
     expect(first.get('[data-testid="quick-amount-bonus-badge"]').text()).toBe('+20%')
-    expect(first.get('[data-testid="quick-amount-credited"]').text()).toContain('$120.00')
+    expect(first.get('[data-testid="quick-amount-credited"]').text()).toContain('¥120.00')
     expect(second.get('[data-testid="quick-amount-bonus-badge"]').text()).toBe('+30%')
-    expect(second.get('[data-testid="quick-amount-credited"]').text()).toContain('$650.00')
+    expect(second.get('[data-testid="quick-amount-credited"]').text()).toContain('¥650.00')
   })
 
   it('bonus mode: matches tiers by the entered amount but credits by the multiplier', () => {
@@ -74,7 +78,7 @@ describe('recharge bonus hints on quick amounts', () => {
     const button = wrapper.get('[data-testid="quick-amount-1000"]')
     expect(button.get('[data-testid="quick-amount-bonus-badge"]').text()).toBe('+30%')
     // 1000 × 0.14 = 140 base, +30% = 182
-    expect(button.get('[data-testid="quick-amount-credited"]').text()).toContain('$182.00')
+    expect(button.get('[data-testid="quick-amount-credited"]').text()).toContain('¥182.00')
   })
 
   it('discount mode: tag reads N% OFF and the second line shows the discounted payment', () => {

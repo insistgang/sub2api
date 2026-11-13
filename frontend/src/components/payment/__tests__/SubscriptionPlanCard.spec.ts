@@ -52,6 +52,13 @@ const mountPlanCard = (groupPlatform: string, overrides: Partial<SubscriptionPla
   });
 
 describe("SubscriptionPlanCard", () => {
+  it("shows internal USD quotas in CNY without relabeling the configured plan price", () => {
+    const text = mountPlanCard("openai", { currency: "USD", daily_limit_usd: 2.5, weekly_limit_usd: 12, monthly_limit_usd: 40 }).text();
+    expect(text).toContain("$10USD");
+    expect(text).toContain("¥2.5");
+    expect(text).toContain("¥12");
+    expect(text).toContain("¥40");
+  });
   it("does not show Antigravity model scopes for OpenAI plans", () => {
     const text = mountPlanCard("openai").text();
 

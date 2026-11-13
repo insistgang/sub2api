@@ -484,6 +484,24 @@ describe('PaymentResultView', () => {
     expect(wrapper.text()).toContain('payment.result.success')
   })
 
+  it.each([
+    ['USD', 'balance', true],
+    ['HKD', 'balance', true],
+    ['CNY', 'balance', false],
+    ['RMB', 'balance', false],
+    ['USD', 'subscription', false],
+  ])('shows CNY credit alongside an equal numeric foreign payment: %s/%s', async (currency, order_type, visible) => {
+    routeState.query = { resume_token: 'resume-equal-amounts' }
+    resolveOrderPublicByResumeToken.mockResolvedValue({
+      data: { ...orderFactory('PAID'), amount: 10, pay_amount: 10, bonus_amount: 0, currency, order_type },
+    })
+    const wrapper = mount(PaymentResultView, { global: { stubs: { OrderStatusBadge: true } } })
+    await flushPromises()
+    expect(wrapper.text()).toContain(formatPaymentAmount(10, currency))
+    expect(wrapper.text().includes('payment.orders.creditedAmount')).toBe(visible)
+    if (visible) expect(wrapper.text()).toContain('¥10.00')
+  })
+
   it('uses the currency returned by the order API when rendering amounts', async () => {
     routeState.query = {
       resume_token: 'resume-hkd',
@@ -509,6 +527,7 @@ describe('PaymentResultView', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain(formatPaymentAmount(103, 'HKD'))
+    expect(wrapper.text()).toContain('¥100.00')
   })
 
   it('normalizes aliased payment methods before rendering the label', async () => {

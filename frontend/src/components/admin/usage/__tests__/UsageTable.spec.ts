@@ -145,6 +145,21 @@ const baseImageRow = {
 }
 
 describe('admin UsageTable tooltip', () => {
+  it('uses CNY in user cost cells and detailed token prices', async () => {
+    const row = { ...baseImageRow, billing_mode: 'token', image_count: 0, input_cost: 0.2, output_cost: 0.2, input_tokens: 100000, output_tokens: 100000 }
+    const wrapper = mount(UsageTable, {
+      props: { data: [row], columns: [{ key: 'cost', label: 'Cost' }], displayCurrency: 'CNY', showAccountBilling: false },
+      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+    })
+    expect(wrapper.text()).toContain('¥0.400000')
+    const triggers = wrapper.findAll('.group.relative')
+    await triggers[triggers.length - 1].trigger('mouseenter')
+    await nextTick()
+    expect(wrapper.text()).toContain('¥0.20000000')
+    expect(wrapper.text()).toContain('¥2.0000 / 1M tokens')
+    expect(wrapper.text()).not.toContain('$')
+  })
+
   it('shows output TPS in the latency cell using total duration', () => {
     const row = { ...baseImageRow, image_count: 0, billing_mode: 'token', output_tokens: 1000, duration_ms: 20_000, first_token_ms: 10_000 }
     const wrapper = mount(UsageTable, {
@@ -329,10 +344,10 @@ describe('admin UsageTable tooltip', () => {
     expect(text).toContain('Account rate')
     expect(text).toContain('User billed')
     expect(text).toContain('Account billed')
-    expect(text).toContain('$0.092883')
-    expect(text).toContain('$5.0000 / 1M tokens')
-    expect(text).toContain('$30.0000 / 1M tokens')
-    expect(text).toContain('$0.069568')
+    expect(text).toContain('¥0.092883')
+    expect(text).toContain('¥5.0000 / 1M tokens')
+    expect(text).toContain('¥30.0000 / 1M tokens')
+    expect(text).toContain('¥0.069568')
   })
 
   it.each(['token', 'image', 'per_request'])('keeps eight decimal places in %s cost details', async (billingMode) => {
@@ -359,10 +374,10 @@ describe('admin UsageTable tooltip', () => {
     await triggers[triggers.length - 1].trigger('mouseenter')
     const amounts = wrapper.get('.fixed').findAll('span').map(span => span.text())
     expect(amounts).toEqual(expect.arrayContaining([
-      '$0.00000001', '$0.00000002', '$0.00000003', '$0.00000004',
-      '$0.00000005', '$0.00000006', '$0.00000022', '$0.00000042', '$0.00000018',
+      '¥0.00000001', '¥0.00000002', '¥0.00000003', '¥0.00000004',
+      '¥0.00000005', '¥0.00000006', '¥0.00000022', '¥0.00000042', '¥0.00000018',
     ]))
-    if (billingMode === 'image') expect(amounts).toContain('$0.00000011')
+    if (billingMode === 'image') expect(amounts).toContain('¥0.00000011')
     wrapper.unmount()
   })
 
@@ -377,8 +392,8 @@ describe('admin UsageTable tooltip', () => {
     })
     const triggers = wrapper.findAll('.group.relative')
     await triggers[triggers.length - 1].trigger('mouseenter')
-    const amounts = wrapper.get('.fixed').findAll('span').map(span => span.text()).filter(text => text.startsWith('$'))
-    expect(amounts).toEqual(['$0.00000000', '$0.00000000', '$0.00000000', '$0.00000000'])
+    const amounts = wrapper.get('.fixed').findAll('span').map(span => span.text()).filter(text => text.startsWith('¥'))
+    expect(amounts).toEqual(['¥0.00000000', '¥0.00000000', '¥0.00000000', '¥0.00000000'])
     wrapper.unmount()
   })
 

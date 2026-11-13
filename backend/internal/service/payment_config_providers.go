@@ -99,6 +99,7 @@ func (s *PaymentConfigService) decryptAndMaskConfig(providerKey, encrypted strin
 // pendingOrderStatuses are order statuses considered "in progress".
 var pendingOrderStatuses = []string{
 	payment.OrderStatusPending,
+	payment.OrderStatusPendingReview,
 	payment.OrderStatusPaid,
 	payment.OrderStatusRecharging,
 }
@@ -178,11 +179,21 @@ func (s *PaymentConfigService) countPendingOrdersByPlan(ctx context.Context, pla
 }
 
 var validProviderKeys = map[string]bool{
-	payment.TypeEasyPay: true, payment.TypeAlipay: true, payment.TypeWxpay: true, payment.TypeStripe: true, payment.TypeAirwallex: true,
+	payment.TypeManual: true, payment.TypeEasyPay: true, payment.TypeAlipay: true, payment.TypeWxpay: true, payment.TypeStripe: true, payment.TypeAirwallex: true,
 }
 
 func (s *PaymentConfigService) CreateProviderInstance(ctx context.Context, req CreateProviderInstanceRequest) (*dbent.PaymentProviderInstance, error) {
 	typesStr := joinTypes(req.SupportedTypes)
+	if req.ProviderKey == payment.TypeManual {
+		req.RefundEnabled = false
+		req.AllowUserRefund = false
+		req.PaymentMode = "qrcode"
+		if req.Enabled {
+			if err := provider.ValidateManualConfig(req.Config, typesStr); err != nil {
+				return nil, err
+			}
+		}
+	}
 	if err := validateProviderRequest(req.ProviderKey, req.Name, typesStr); err != nil {
 		return nil, err
 	}
@@ -354,6 +365,11 @@ func (s *PaymentConfigService) UpdateProviderInstance(ctx context.Context, id in
 			return nil, fmt.Errorf("decrypt existing config: %w", err)
 		}
 	}
+	if current.ProviderKey == payment.TypeManual && nextEnabled {
+		if err := provider.ValidateManualConfig(configToValidate, nextSupportedTypes); err != nil {
+			return nil, err
+		}
+	}
 	if current.ProviderKey == payment.TypeEasyPay {
 		if err := validateEasyPayCustomMethods(configToValidate, nextSupportedTypes); err != nil {
 			return nil, err
@@ -446,6 +462,9 @@ func (s *PaymentConfigService) UpdateProviderInstance(ctx context.Context, id in
 	}
 	if req.PaymentMode != nil {
 		u.SetPaymentMode(*req.PaymentMode)
+	}
+	if current.ProviderKey == payment.TypeManual {
+		u.SetRefundEnabled(false).SetAllowUserRefund(false).SetPaymentMode("qrcode")
 	}
 	return u.Save(ctx)
 }

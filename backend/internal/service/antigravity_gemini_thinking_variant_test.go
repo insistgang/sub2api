@@ -37,6 +37,7 @@ func TestGeminiThinkingLevelFromBody(t *testing.T) {
 		{"budget 24576", `{"generationConfig":{"thinkingConfig":{"thinkingBudget":24576}}}`, "high"},
 		{"thinkingLevel wins over budget", `{"generationConfig":{"thinkingConfig":{"thinkingBudget":24576,"thinkingLevel":"low"}}}`, "low"},
 		{"thinkingLevel medium", `{"generationConfig":{"thinkingConfig":{"thinkingLevel":"MEDIUM"}}}`, "medium"},
+		{"thinkingLevel xhigh", `{"generationConfig":{"thinkingConfig":{"thinkingLevel":"XHIGH"}}}`, "xhigh"},
 		{"invalid json", `{"generationConfig":`, "high"},
 	}
 	for _, tt := range tests {
@@ -215,4 +216,32 @@ func TestGetMappedModelResolvesBareGeminiModelForAllEntrypoints(t *testing.T) {
 	t.Run("unsupported model still reports unsupported", func(t *testing.T) {
 		require.Empty(t, svc.getMappedModel(account, "gemini-9.9-flash"))
 	})
+}
+
+func TestGetMappedModelHydrogenXHighRespectsAvailableVariantsAndAliases(t *testing.T) {
+	svc := &AntigravityGatewayService{}
+	for _, tc := range []struct {
+		name, model, want string
+		mapping           map[string]string
+	}{
+		{"default bare alias allows explicit effort", "gemini-4-hydrogen", "gemini-4-hydrogen-xhigh", nil},
+		{"explicit xhigh is preserved", "gemini-4-hydrogen-xhigh", "gemini-4-hydrogen-xhigh", nil},
+		{"administrator alias wins", "gemini-4-hydrogen", "gemini-4-argon-high", map[string]string{
+			"gemini-4-hydrogen": "gemini-4-argon-high", "gemini-4-hydrogen-xhigh": "gemini-4-hydrogen-xhigh",
+		}},
+		{"administrator high alias wins", "gemini-4-hydrogen", "gemini-4-hydrogen-high", map[string]string{
+			"gemini-4-hydrogen": "gemini-4-hydrogen-high", "gemini-4-hydrogen-xhigh": "gemini-4-hydrogen-xhigh",
+		}},
+		{"missing xhigh falls back to actual high", "gemini-4-hydrogen", "gemini-4-hydrogen-high", map[string]string{
+			"gemini-4-hydrogen-high": "gemini-4-hydrogen-high", "gemini-4-hydrogen-*": "unverified-xhigh",
+		}},
+		{"old family cannot fabricate xhigh from wildcard", "gemini-3.9-flash", "gemini-3.9-flash-high", map[string]string{
+			"gemini-3.9-flash-high": "gemini-3.9-flash-high", "gemini-3.9-flash-*": "unverified-xhigh",
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			account := newAntigravityAccountWithMapping(tc.mapping)
+			require.Equal(t, tc.want, svc.getMappedModelForThinkingLevel(account, tc.model, "xhigh"))
+		})
+	}
 }

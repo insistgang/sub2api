@@ -104,42 +104,42 @@
           <!-- Default prices (fallback when no interval matches) -->
           <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
             {{ t('admin.channels.form.defaultPrices') }}
-            <span class="ml-1 font-normal text-gray-400">$/MTok</span>
+            <span class="ml-1 font-normal text-gray-400">¥/MTok</span>
           </label>
           <div class="pricing-default-grid mt-1 grid gap-2">
             <div>
               <label class="text-xs text-gray-400">{{ t('admin.channels.form.inputPrice') }}</label>
-              <input :value="entry.input_price" @input="emitField('input_price', ($event.target as HTMLInputElement).value)"
+              <input :value="displayPrice(entry.input_price)" @input="emitField('input_price', ($event.target as HTMLInputElement).value)"
                 type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div>
               <label class="text-xs text-gray-400">{{ t('admin.channels.form.outputPrice') }}</label>
-              <input :value="entry.output_price" @input="emitField('output_price', ($event.target as HTMLInputElement).value)"
+              <input :value="displayPrice(entry.output_price)" @input="emitField('output_price', ($event.target as HTMLInputElement).value)"
                 type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div>
               <label class="text-xs text-gray-400">{{ t('admin.channels.form.cacheWrite5mPrice') }}</label>
-              <input :value="entry.cache_write_price" @input="emitField('cache_write_price', ($event.target as HTMLInputElement).value)"
+              <input :value="displayPrice(entry.cache_write_price)" @input="emitField('cache_write_price', ($event.target as HTMLInputElement).value)"
                 type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div>
               <label class="text-xs text-gray-400">{{ t('admin.channels.form.cacheWrite1hPrice') }}</label>
-              <input :value="entry.cache_write_1h_price" @input="emitField('cache_write_1h_price', ($event.target as HTMLInputElement).value)"
+              <input :value="displayPrice(entry.cache_write_1h_price)" @input="emitField('cache_write_1h_price', ($event.target as HTMLInputElement).value)"
                 type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div>
               <label class="text-xs text-gray-400">{{ t('admin.channels.form.cacheReadPrice') }}</label>
-              <input :value="entry.cache_read_price" @input="emitField('cache_read_price', ($event.target as HTMLInputElement).value)"
+              <input :value="displayPrice(entry.cache_read_price)" @input="emitField('cache_read_price', ($event.target as HTMLInputElement).value)"
                 type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div>
               <label class="text-xs text-gray-400">{{ t('admin.channels.form.imageInputPrice') }}</label>
-              <input :value="entry.image_input_price" @input="emitField('image_input_price', ($event.target as HTMLInputElement).value)"
+              <input :value="displayPrice(entry.image_input_price)" @input="emitField('image_input_price', ($event.target as HTMLInputElement).value)"
                 type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div>
               <label class="text-xs text-gray-400">{{ t('admin.channels.form.imageTokenPrice') }}</label>
-              <input :value="entry.image_output_price" @input="emitField('image_output_price', ($event.target as HTMLInputElement).value)"
+              <input :value="displayPrice(entry.image_output_price)" @input="emitField('image_output_price', ($event.target as HTMLInputElement).value)"
                 type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
           </div>
@@ -193,10 +193,10 @@
           <!-- Default per-request price -->
           <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
             {{ t('admin.channels.form.defaultPerRequestPrice') }}
-            <span class="ml-1 font-normal text-gray-400">$</span>
+            <span class="ml-1 font-normal text-gray-400">¥</span>
           </label>
           <div class="mt-1 w-48">
-            <input :value="entry.per_request_price" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"
+            <input :value="displayPrice(entry.per_request_price)" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"
               type="number" step="any" min="0" class="input text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
           </div>
 
@@ -229,10 +229,10 @@
           <!-- Default image price (per-request, same as per_request mode) -->
           <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
             {{ entry.billing_mode === 'video' ? t('admin.channels.form.defaultVideoPrice') : t('admin.channels.form.defaultImagePrice') }}
-            <span class="ml-1 font-normal text-gray-400">$</span>
+            <span class="ml-1 font-normal text-gray-400">{{ entry.billing_mode === 'video' ? '¥/s' : '¥' }}</span>
           </label>
           <div class="mt-1 w-48">
-            <input :value="entry.per_request_price" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"
+            <input :value="displayPrice(entry.per_request_price)" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"
               type="number" step="any" min="0" class="input text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
           </div>
 
@@ -300,6 +300,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { CNY_PER_USD, usdToCny, cnyToUsd } from '@/utils/displayCurrency'
 import { useI18n } from 'vue-i18n'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -360,8 +361,15 @@ function updateReasoningEffortMultiplier(effort: ReasoningEffortLevel, value: st
   })
 }
 
+function displayPrice(value: number | string | null | undefined): number | string {
+  if (value == null || value === '') return ''
+  return CNY_PER_USD === 1 ? value : usdToCny(Number(value))
+}
+
 function emitField(field: keyof PricingFormEntry, value: string) {
-  emit('update', { ...props.entry, [field]: value === '' ? null : value })
+  const storedValue = value === '' ? null
+    : field.endsWith('_price') && value != null && CNY_PER_USD !== 1 ? String(cnyToUsd(Number(value))) : value
+  emit('update', { ...props.entry, [field]: storedValue })
 }
 
 function addInterval() {

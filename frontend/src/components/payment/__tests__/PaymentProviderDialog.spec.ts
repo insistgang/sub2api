@@ -277,3 +277,38 @@ describe('PaymentProviderDialog payment guide', () => {
     expect(wrapper.emitted('save')).toBeUndefined()
   })
 })
+
+describe('PaymentProviderDialog manual QR provider', () => {
+  it('shows QR image previews and forces refund settings off', async () => {
+    const provider = providerFactory({
+      provider_key: 'manual',
+      name: 'Personal QR',
+      config: {
+        alipayQRCode: 'https://pay.example.invalid/alipay.png',
+        wxpayQRCode: 'data:image/png;base64,aGVsbG8=',
+        payeeName: 'Owner',
+        currency: 'CNY',
+      },
+      supported_types: ['alipay', 'wxpay'],
+      refund_enabled: true,
+      allow_user_refund: true,
+    })
+    const wrapper = mountDialog({ editing: provider })
+
+    ;(wrapper.vm as unknown as { loadProvider: (provider: ProviderInstance) => void }).loadProvider(provider)
+    await nextTick()
+
+    expect(wrapper.findAll('input[type="url"]')).toHaveLength(2)
+    expect(wrapper.findAll('img').map(image => image.attributes('src'))).toEqual([
+      'https://pay.example.invalid/alipay.png',
+      'data:image/png;base64,aGVsbG8=',
+    ])
+    await wrapper.find('form').trigger('submit.prevent')
+
+    const payload = wrapper.emitted('save')?.[0]?.[0] as { refund_enabled: boolean; allow_user_refund: boolean; config: Record<string, string> }
+    expect(payload.config.alipayQRCode).toBe('https://pay.example.invalid/alipay.png')
+    expect(payload.config.wxpayQRCode).toBe('data:image/png;base64,aGVsbG8=')
+    expect(payload.refund_enabled).toBe(false)
+    expect(payload.allow_user_refund).toBe(false)
+  })
+})

@@ -221,10 +221,14 @@ type autoResetTestQuota struct {
 	failFirst    bool
 	queryCalls   atomic.Int32
 	queryErr     error
+	queryHook    func()
 }
 
 func (q *autoResetTestQuota) QueryUsage(context.Context, int64) (*OpenAIQuotaUsage, error) {
 	q.queryCalls.Add(1)
+	if q.queryHook != nil {
+		q.queryHook()
+	}
 	if q.queryErr != nil {
 		return nil, q.queryErr
 	}

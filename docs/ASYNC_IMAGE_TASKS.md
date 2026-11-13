@@ -2,6 +2,8 @@
 
 Asynchronous image tasks let clients submit long-running OpenAI-compatible image requests without keeping one HTTP connection open. This avoids proxy/CDN response timeouts such as Cloudflare 524 while preserving the existing image routing, billing, moderation, concurrency, and failover behavior.
 
+For a Chinese walkthrough covering accounts, groups, model allowlists, synchronous generation/editing, Compose configuration, and troubleshooting, see [生图与常用配置指南](IMAGE_CONFIGURATION_CN.md).
+
 ## Endpoints
 
 The authenticated gateway exposes both `/v1` paths and their existing no-prefix aliases:

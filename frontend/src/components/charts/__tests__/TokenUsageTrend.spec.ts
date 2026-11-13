@@ -26,6 +26,15 @@ vi.mock('vue-chartjs', () => ({
 }))
 
 describe('TokenUsageTrend', () => {
+  it('uses CNY in user cost tooltip and supports explicit USD', () => {
+    const trendData = [{ date: '2026-05-08', requests: 1, input_tokens: 1, output_tokens: 1, cache_creation_tokens: 0, cache_read_tokens: 0, cost: 0.02, actual_cost: 0.01 }]
+    const cny = mount(TokenUsageTrend, { props: { trendData, displayCurrency: 'CNY' } })
+    const usd = mount(TokenUsageTrend, { props: { trendData, displayCurrency: 'USD' } })
+    const footer = (wrapper: typeof cny) => (wrapper.vm as any).$?.setupState.lineOptions.plugins.tooltip.callbacks.footer([{ dataIndex: 0 }])
+    expect(footer(cny)).toBe('Actual: ¥0.010 | Standard: ¥0.020')
+    expect(footer(usd)).toBe('Actual: $0.010 | Standard: $0.020')
+  })
+
   it('calculates cache hit rate against all prompt tokens', () => {
     const wrapper = mount(TokenUsageTrend, {
       props: {

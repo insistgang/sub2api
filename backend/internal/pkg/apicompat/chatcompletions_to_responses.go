@@ -24,7 +24,7 @@ func ChatCompletionsToResponses(req *ChatCompletionsRequest) (*ResponsesRequest,
 // ChatCompletionsToResponsesWithMinOutputTokens converts a Chat Completions
 // request using the supplied max_output_tokens floor.
 func ChatCompletionsToResponsesWithMinOutputTokens(req *ChatCompletionsRequest, minOutputTokens int) (*ResponsesRequest, error) {
-	if err := openai.ValidateGPT61SolReasoningEffort(req.Model, req.ReasoningEffort); err != nil {
+	if err := openai.ValidateModelReasoningEffort(req.Model, req.ReasoningEffort); err != nil {
 		return nil, err
 	}
 	input, err := convertChatMessagesToResponsesInput(req.Messages)
@@ -50,7 +50,7 @@ func ChatCompletionsToResponsesWithMinOutputTokens(req *ChatCompletionsRequest, 
 
 	// Reasoning models (gpt-5.x) do not accept sampling parameters.
 	// See isReasoningModel in anthropic_to_responses.go.
-	if !isReasoningModel(req.Model) || (openai.IsGPT6SolOrLunaModelSpelling(req.Model) && req.ReasoningEffort == "none") {
+	if !isReasoningModel(req.Model) || ((openai.IsGPT6SolOrLunaModelSpelling(req.Model) || openai.IsGPT61TerraModelSpelling(req.Model)) && req.ReasoningEffort == "none") {
 		out.Temperature = req.Temperature
 		out.TopP = req.TopP
 	}

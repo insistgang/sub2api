@@ -40,6 +40,139 @@ describe('UseKeyModal', () => {
     saveAsMock.mockClear()
   })
 
+  it('provides separate generation and edit examples for OpenAI keys without embedding the secret', async () => {
+    const wrapper = mount(UseKeyModal, {
+      props: { show: true, apiKey: 'sk-secret-test', baseUrl: 'https://example.com/v1/', platform: 'openai' },
+      global: { stubs: { BaseDialog: { template: '<div><slot /><slot name="footer" /></div>' }, Icon: { template: '<span />' } } }
+    })
+    const tab = wrapper.findAll('button').find(button => button.text().includes('keys.useKeyModal.cliTabs.images'))
+    expect(tab).toBeDefined()
+    await tab!.trigger('click')
+    let blocks = wrapper.findAll('pre code').map(code => code.text())
+    expect(blocks).toHaveLength(4)
+    expect(blocks[0]).toContain('export SUB2API_API_KEY=')
+    expect(blocks[0]).not.toContain('curl')
+    expect(blocks[1]).toContain('https://example.com/v1/images/generations')
+    expect(blocks[1]).toContain('gpt-image-2.6-sunburst')
+    expect(blocks[0]).toContain('SUB2API_API_KEY')
+    expect(blocks[2]).toContain('https://example.com/v1/images/edits')
+    expect(blocks[2]).toContain('reference.png')
+    expect(blocks[3]).toContain('generated.png')
+    expect(blocks[3]).toContain('b64_json')
+    expect(blocks.join('\n')).not.toContain('sk-secret-test')
+    expect(wrapper.text()).toContain('keys.useKeyModal.images.note')
+    await wrapper.findAll('button').find(button => button.text().trim() === 'Windows')!.trigger('click')
+    blocks = wrapper.findAll('pre code').map(code => code.text())
+    expect(blocks[0]).toContain('$env:SUB2API_API_KEY')
+    expect(blocks[0]).not.toContain('Invoke-RestMethod')
+    expect(blocks[1]).toContain('-TimeoutSec 900')
+    expect(blocks[2]).toContain('curl.exe')
+    expect(blocks.join('\n')).not.toContain('sk-secret-test')
+  })
+
+  it('copies image preparation without making a request or exposing the selected key', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const wrapper = mount(UseKeyModal, {
+      props: { show: true, apiKey: 'sk-private-image-test', baseUrl: 'https://example.com/v1', platform: 'openai' },
+      global: { stubs: { BaseDialog: { template: '<div><slot /></div>' }, Icon: { template: '<span />' } } }
+    })
+    await wrapper.findAll('button').find(button => button.text().includes('keys.useKeyModal.cliTabs.images'))!.trigger('click')
+    const setup = wrapper.find('pre code').text()
+    expect(setup).not.toMatch(/curl|Invoke-RestMethod/)
+    await wrapper.findAll('button').find(button => button.text().trim() === 'keys.useKeyModal.copy')!.trigger('click')
+    expect(copyToClipboardMock).toHaveBeenCalledWith(setup, 'keys.copied')
+    expect(setup).toContain('SUB2API_API_KEY')
+    expect(setup).not.toContain('sk-private-image-test')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['https://us.insistgang.top', 'https://us.insistgang.top/v1', true],
+    ['https://us.insistgang.top/v1/', 'https://us.insistgang.top/v1', true],
+    ['https://api.insistgang.top/v1', 'https://api.insistgang.top/v1', true],
+    ['https://example.com/proxy/v1/', 'https://example.com/proxy/v1', false]
+  ] as const)('keeps image connection instructions and commands aligned for %s', async (baseUrl, expectedBase, showServiceDomains) => {
+    const wrapper = mount(UseKeyModal, {
+      props: { show: true, apiKey: 'sk-domain-test', baseUrl, platform: 'openai' },
+      global: { stubs: { BaseDialog: { template: '<div><slot /></div>' }, Icon: { template: '<span />' } } }
+    })
+    await wrapper.findAll('button').find(button => button.text().includes('keys.useKeyModal.cliTabs.images'))!.trigger('click')
+    const connectionInfo = wrapper.find('[data-testid="image-connection-info"]')
+    expect(connectionInfo.exists()).toBe(true)
+    const endpoints = connectionInfo.findAll('code').map(code => code.text())
+    expect(endpoints).toEqual([
+      expectedBase,
+      `${expectedBase}/images/generations`,
+      `${expectedBase}/images/edits`,
+      `${expectedBase}/models`
+    ])
+    const blocks = wrapper.findAll('pre code').map(code => code.text())
+    expect(blocks[1]).toContain(`${expectedBase}/images/generations`)
+    expect(blocks[2]).toContain(`${expectedBase}/images/edits`)
+    expect(wrapper.find('[data-testid="image-service-domains"]').exists()).toBe(showServiceDomains)
+    if (showServiceDomains) {
+      const domains = wrapper.get('[data-testid="image-service-domains"]').text()
+      expect(domains).toContain('https://us.insistgang.top/v1')
+      expect(domains).toContain('https://api.insistgang.top/v1')
+    }
+  })
+
+  it('does not advertise OpenAI image examples for other platform keys', () => {
+    const wrapper = mount(UseKeyModal, {
+      props: { show: true, apiKey: 'sk-test', baseUrl: 'https://example.com', platform: 'gemini' },
+      global: { stubs: { BaseDialog: { template: '<div><slot /></div>' }, Icon: { template: '<span />' } } }
+    })
+    expect(wrapper.findAll('button').some(button => button.text().includes('keys.useKeyModal.cliTabs.images'))).toBe(false)
+  })
+
+  it('omits retired Gemini models and uses the documented 2.5 Pro context limit', async () => {
+    const wrapper = mount(UseKeyModal, {
+      props: { show: true, apiKey: 'sk-test', baseUrl: 'https://example.com/v1', platform: 'gemini' },
+      global: { stubs: { BaseDialog: { template: '<div><slot /></div>' }, Icon: { template: '<span />' } } }
+    })
+    await wrapper.findAll('button').find(button => button.text().includes('keys.useKeyModal.cliTabs.opencode'))!.trigger('click')
+    const models = JSON.parse(wrapper.find('pre code').text()).provider.gemini.models
+    expect(models).not.toHaveProperty('gemini-2.0-flash')
+    expect(models).not.toHaveProperty('gemini-3-pro-preview')
+    expect(models['gemini-2.5-pro'].limit.context).toBe(1048576)
+  })
+
+  it.each([
+    ['anthropic', 'claude-sonnet-5-5'],
+    ['antigravity', 'claude-sonnet-5-5-high']
+  ] as const)('uses the current routed Codex preference for %s without forcing native Claude defaults', async (platform, model) => {
+    const wrapper = mount(UseKeyModal, {
+      props: { show: true, apiKey: 'sk-test', baseUrl: 'https://example.com/v1', platform },
+      global: { stubs: { BaseDialog: { template: '<div><slot /></div>' }, Icon: { template: '<span />' } } }
+    })
+    expect(wrapper.find('pre code').text()).not.toContain('ANTHROPIC_MODEL')
+    await wrapper.findAll('button').find(button => button.text().includes('keys.useKeyModal.cliTabs.codexCli'))!.trigger('click')
+    expect(wrapper.findAll('pre code').map(code => code.text()).join('\n')).toContain(`model = "${model}"`)
+  })
+
+  it.each(['composite', 'command_code'] as const)('explains the protocol and model selection required by %s OpenCode examples', async platform => {
+    const wrapper = mount(UseKeyModal, {
+      props: { show: true, apiKey: 'sk-test', baseUrl: 'https://example.com/v1', platform },
+      global: { stubs: { BaseDialog: { template: '<div><slot /></div>' }, Icon: { template: '<span />' } } }
+    })
+    await wrapper.findAll('button').find(button => button.text().includes('keys.useKeyModal.cliTabs.opencode'))!.trigger('click')
+    expect(wrapper.text()).toContain('keys.useKeyModal.opencode.routedHint')
+    expect(JSON.parse(wrapper.find('pre code').text()).provider.openai).toBeDefined()
+  })
+
+  it('gives a provider-specific OpenCode example without invented capabilities', async () => {
+    const wrapper = mount(UseKeyModal, {
+      props: { show: true, apiKey: 'sk-test', baseUrl: 'https://example.com/v1', platform: 'deepseek' },
+      global: { stubs: { BaseDialog: { template: '<div><slot /></div>' }, Icon: { template: '<span />' } } }
+    })
+    await wrapper.findAll('button').find(button => button.text().includes('keys.useKeyModal.cliTabs.opencode'))!.trigger('click')
+    const config = JSON.parse(wrapper.find('pre code').text())
+    expect(config.model).toBe('sub2api-deepseek/deepseek-flash')
+    expect(config.provider['sub2api-deepseek'].models['deepseek-flash']).toEqual({ name: 'deepseek-flash' })
+    expect(wrapper.text()).toContain('keys.useKeyModal.opencode.compatibleHint')
+  })
+
   it('shows only Claude Code for Claude Code-only groups', async () => {
     const wrapper = mount(UseKeyModal, {
       props: {
@@ -151,21 +284,21 @@ describe('UseKeyModal', () => {
     const allCode = wrapper.findAll('pre code').map((code) => code.text()).join('\n')
     expect(allCode).toContain('GROK_MODELS_BASE_URL')
     expect(allCode).toContain('XAI_API_KEY')
-    expect(allCode).toContain('[model."grok-4.5"]')
+    expect(allCode).toContain('[model."grok-4.7"]')
     expect(allCode).toContain('[model."grok-build-0.1"]')
     expect(allCode).toContain('[model."grok-4.20-multi-agent-0309"]')
     expect(allCode).toContain('[model."grok-4.3"]')
-    expect(allCode).toContain('default = "grok-4.5"')
+    expect(allCode).toContain('default = "grok-4.7"')
     expect(allCode).toContain('models_base_url = "https://example.com/v1"')
     expect(allCode).toContain('models_list_url = "https://example.com/v1/models"')
     expect(allCode).toContain('xai_api_base_url = "https://example.com/v1"')
     expect(allCode).toContain('cli_chat_proxy_base_url = "https://example.com/v1"')
     expect(allCode).toContain('preferred_method = "api_key"')
-    expect(allCode).toContain('image_description = "grok-4.5"')
+    expect(allCode).toContain('image_description = "grok-4.7"')
     expect(allCode).toContain('auto_compact_threshold_percent = 80')
     expect(allCode).toContain('image_gen = true')
     expect(allCode).toContain('video_gen = true')
-    expect(allCode).toContain('image_gen_model_override = "grok-imagine-image-quality"')
+    expect(allCode).toContain('image_gen_model_override = "grok-imagine-image-2.0"')
     expect(allCode).toContain('image_edit_model_override = "grok-imagine-edit"')
     expect(allCode).toContain('env_key = "XAI_API_KEY"')
     expect(allCode).toContain('Keep api_backend = "responses" on every model entry.')
@@ -201,12 +334,14 @@ describe('UseKeyModal', () => {
     await nextTick()
 
     const parsed = JSON.parse(wrapper.find('pre code').text())
-    expect(parsed.provider.grok.npm).toBe('@ai-sdk/openai-compatible')
+    expect(parsed.provider.grok.npm).toBe('@ai-sdk/openai')
     expect(parsed.provider.grok.name).toBe('Grok via Sub2API')
     expect(parsed.provider.grok.options).toEqual({
       baseURL: 'https://example.com/v1',
       apiKey: 'sk-grok-test'
     })
+    expect(parsed.provider.grok.models['grok-4.7']).toBeDefined()
+    expect(parsed.provider.grok.models['grok-4.7']).not.toHaveProperty('limit')
     expect(parsed.provider.grok.models['grok-4.5']).toBeDefined()
     expect(parsed.provider.grok.models['grok-4.5'].limit.context).toBe(500000)
     expect(parsed.provider.grok.models['grok-build-0.1']).toBeDefined()
@@ -256,13 +391,13 @@ describe('UseKeyModal', () => {
       'ANTHROPIC_DEFAULT_FABLE_MODEL',
       'CLAUDE_CODE_SUBAGENT_MODEL'
     ]) {
-      expect(unixConfig).toContain(`export ${name}="grok-4.5"`)
+      expect(unixConfig).toContain(`export ${name}="grok-4.7"`)
     }
     const settingsConfig = codeBlocks.find((content) => content.includes('"$schema"'))
     expect(settingsConfig).toBeDefined()
     const parsedSettings = JSON.parse(settingsConfig!)
     expect(parsedSettings.$schema).toBe('https://json.schemastore.org/claude-code-settings.json')
-    expect(parsedSettings.env.ANTHROPIC_MODEL).toBe('grok-4.5')
+    expect(parsedSettings.env.ANTHROPIC_MODEL).toBe('grok-4.7')
     expect(codeBlocks.join('\n')).not.toContain('CLAUDE_CODE_ATTRIBUTION_HEADER')
     expect(codeBlocks.join('\n')).toContain('CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC')
     expect(parsedSettings.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC).toBe('1')
@@ -280,9 +415,9 @@ describe('UseKeyModal', () => {
     await nextTick()
 
     codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
-    expect(codeBlocks.join('\n')).toContain('set ANTHROPIC_MODEL=grok-4.5')
-    expect(codeBlocks.join('\n')).toContain('set ANTHROPIC_DEFAULT_FABLE_MODEL=grok-4.5')
-    expect(codeBlocks.join('\n')).toContain('set CLAUDE_CODE_SUBAGENT_MODEL=grok-4.5')
+    expect(codeBlocks.join('\n')).toContain('set ANTHROPIC_MODEL=grok-4.7')
+    expect(codeBlocks.join('\n')).toContain('set ANTHROPIC_DEFAULT_FABLE_MODEL=grok-4.7')
+    expect(codeBlocks.join('\n')).toContain('set CLAUDE_CODE_SUBAGENT_MODEL=grok-4.7')
     expect(codeBlocks.join('\n')).toContain('set CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1')
     expect(codeBlocks.join('\n')).not.toContain('CLAUDE_CODE_ATTRIBUTION_HEADER')
     const cmdSettings = JSON.parse(codeBlocks.find((content) => content.includes('"$schema"'))!)
@@ -298,9 +433,9 @@ describe('UseKeyModal', () => {
 
     codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
     expect(codeBlocks.join('\n')).toContain('$env:ANTHROPIC_BASE_URL="https://example.com"')
-    expect(codeBlocks.join('\n')).toContain('$env:ANTHROPIC_MODEL="grok-4.5"')
-    expect(codeBlocks.join('\n')).toContain('$env:ANTHROPIC_DEFAULT_FABLE_MODEL="grok-4.5"')
-    expect(codeBlocks.join('\n')).toContain('$env:CLAUDE_CODE_SUBAGENT_MODEL="grok-4.5"')
+    expect(codeBlocks.join('\n')).toContain('$env:ANTHROPIC_MODEL="grok-4.7"')
+    expect(codeBlocks.join('\n')).toContain('$env:ANTHROPIC_DEFAULT_FABLE_MODEL="grok-4.7"')
+    expect(codeBlocks.join('\n')).toContain('$env:CLAUDE_CODE_SUBAGENT_MODEL="grok-4.7"')
     expect(codeBlocks.join('\n')).toContain('$env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"')
     expect(codeBlocks.join('\n')).not.toContain('CLAUDE_CODE_ATTRIBUTION_HEADER')
     const powershellSettings = JSON.parse(codeBlocks.find((content) => content.includes('"$schema"'))!)
@@ -350,7 +485,7 @@ describe('UseKeyModal', () => {
     const configToml = codeBlocks.find((content) => content.includes('[model_providers.sub2api]'))
     expect(configToml).toBeDefined()
     expect(configToml).toContain('model_provider = "sub2api"')
-    expect(configToml).toContain('model = "grok-4.5"')
+    expect(configToml).toContain('model = "grok-4.7"')
     expect(configToml).toContain('base_url = "https://example.com/v1"')
     expect(configToml).toContain('env_key = "SUB2API_API_KEY"')
     expect(configToml).toContain('wire_api = "responses"')
@@ -403,8 +538,8 @@ describe('UseKeyModal', () => {
     const configToml = codeBlocks.find((content) => content.includes('model_provider = "OpenAI"'))
 
     expect(configToml).toBeDefined()
-    expect(configToml).toContain('model = "gpt-5.5"')
-    expect(configToml).toContain('review_model = "gpt-5.5"')
+    expect(configToml).toContain('model = "gpt-6.1-terra"')
+    expect(configToml).toContain('review_model = "gpt-6.1-terra"')
     expect(configToml).not.toContain('model = "gpt-5.4"')
     expect(configToml).not.toContain('model_context_window')
     expect(configToml).not.toContain('model_auto_compact_token_limit')
@@ -547,8 +682,8 @@ describe('UseKeyModal', () => {
     const configToml = codeBlocks.find((content) => content.includes('supports_websockets = true'))
 
     expect(configToml).toBeDefined()
-    expect(configToml).toContain('model = "gpt-5.5"')
-    expect(configToml).toContain('review_model = "gpt-5.5"')
+    expect(configToml).toContain('model = "gpt-6.1-terra"')
+    expect(configToml).toContain('review_model = "gpt-6.1-terra"')
     expect(configToml).not.toContain('model = "gpt-5.4"')
     expect(configToml).not.toContain('model_context_window')
     expect(configToml).not.toContain('model_auto_compact_token_limit')
@@ -715,12 +850,13 @@ describe('UseKeyModal', () => {
 
     const parsed = JSON.parse(wrapper.find('pre code').text())
     const models = parsed.provider.openai.models
-    for (const model of ['gpt-5.6', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-6.1-sol', 'gpt-6-sol', 'gpt-6-luna']) {
+    for (const model of ['gpt-5.6', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-6.1-sol', 'gpt-6.1-terra', 'gpt-6-sol', 'gpt-6-luna']) {
       expect(models[model]).toBeDefined()
       expect(models[model].variants).toHaveProperty('max')
       expect(models[model].variants).toHaveProperty('xhigh')
     }
     expect(models['gpt-5.6'].name).toBe('GPT-5.6 (Sol)')
+    expect(models['gpt-6.1-terra'].variants).not.toHaveProperty('none')
     expect(models['gpt-6.1-sol'].variants).not.toHaveProperty('none')
     expect(models['gpt-6-sol'].variants).toHaveProperty('none')
     expect(models['gpt-6-luna'].limit).toEqual({ context: 1050000, output: 128000 })
@@ -961,7 +1097,7 @@ describe('UseKeyModal', () => {
       text: async () => JSON.stringify({
         models: [
           { slug: 'claude-opus-4-8' },
-          { slug: 'gpt-5.5' }
+          { slug: 'gpt-6.1-terra' }
         ]
       })
     }))
@@ -996,8 +1132,8 @@ describe('UseKeyModal', () => {
     const config = wrapper.findAll('pre code')
       .map((code) => code.text())
       .find((content) => content.includes('[model_providers.sub2api]'))
-    expect(config).toContain('model = "gpt-5.5"')
-    expect(config).toContain('review_model = "gpt-5.5"')
+    expect(config).toContain('model = "gpt-6.1-terra"')
+    expect(config).toContain('review_model = "gpt-6.1-terra"')
   })
 
   it('offers remote and optional file catalogs for OpenAI in both transport modes and on both platforms', async () => {
@@ -1029,7 +1165,7 @@ describe('UseKeyModal', () => {
         const configToml = wrapper.findAll('pre code')
           .map((code) => code.text())
           .find((content) => content.includes('model_provider = "OpenAI"'))
-        expect(configToml).toContain('model = "gpt-5.5"')
+        expect(configToml).toContain('model = "gpt-6.1-terra"')
         expect(configToml).toContain('[model_providers.OpenAI]\nname = "OpenAI"\nbase_url = "https://example.com/v1"\nmodel_catalog_url = "https://example.com/v1/models"')
         expect(configToml).not.toContain('model_catalog_json')
         expect(configToml).toContain('requires_openai_auth = true')

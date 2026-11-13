@@ -188,7 +188,7 @@ func (lb *DefaultLoadBalancer) attachDailyUsage(
 		Where(
 			paymentorder.ProviderInstanceIDIn(ids...),
 			paymentorder.StatusIn(
-				OrderStatusPending, OrderStatusPaid,
+				OrderStatusPending, OrderStatusPendingReview, OrderStatusPaid,
 				OrderStatusCompleted, OrderStatusRecharging,
 			),
 			paymentorder.CreatedAtGTE(todayStart),

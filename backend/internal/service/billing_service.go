@@ -536,6 +536,16 @@ func (s *BillingService) initFallbackPricing() {
 		SupportsCacheBreakdown: false,
 	}
 
+	// Gemini 4 Hydrogen: $1.50 input / $7.50 output / $0.075 cached input per
+	// MTok. All four Antigravity reasoning variants share the standard rate.
+	// Source: https://aistudio.google.com/docs/pricing#gemini-4-hydrogen
+	s.fallbackPrices["gemini-4-hydrogen"] = &ModelPricing{
+		InputPricePerToken:     1.5e-6,
+		OutputPricePerToken:    7.5e-6,
+		CacheReadPricePerToken: 0.075e-6,
+		SupportsCacheBreakdown: false,
+	}
+
 	// Gemini 4 Argon Cyber Permissive (Vertex AI pricing: $4 input / $20 output /
 	// $0.20 cached input per MTok). The Gemini 4 Argon promotion does not apply.
 	s.fallbackPrices["gemini-4-argon-cyber-permissive"] = &ModelPricing{
@@ -590,6 +600,17 @@ func (s *BillingService) initFallbackPricing() {
 		LongContextOutputMultiplier:        1.5,
 	}
 
+	// GPT-6.1 Terra official rates with 30-minute cache retention.
+	// Existing usage accounting does not distinguish 12-hour retention.
+	// Source: https://developers.openai.com/api/docs/models/gpt-6.1-terra
+	s.fallbackPrices["gpt-6.1-terra"] = &ModelPricing{
+		InputPricePerToken: 1e-6, InputPricePerTokenPriority: 2e-6,
+		OutputPricePerToken: 5e-6, OutputPricePerTokenPriority: 10e-6,
+		CacheCreationPricePerToken: 1.25e-6, CacheCreationPricePerTokenPriority: 2.5e-6,
+		CacheReadPricePerToken: 0.05e-6, CacheReadPricePerTokenPriority: 0.1e-6,
+		CacheCreationPriceExplicit: true,
+		LongContextInputThreshold:  272000, LongContextInputMultiplier: 2, LongContextOutputMultiplier: 1.5,
+	}
 	// GPT-6 Sol/Luna official rates, 2026-09-22.
 	s.fallbackPrices["gpt-6.1-sol"] = &ModelPricing{
 		InputPricePerToken:                 2e-6,
@@ -1050,6 +1071,9 @@ func (s *BillingService) initFallbackPricing() {
 // getFallbackPricing 根据模型系列获取回退价格
 func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 	modelLower := normalizeAntigravityClaudeTierAlias(strings.ToLower(model))
+	if normalizeGeminiThinkingTierAlias(lastSegment(strings.TrimSpace(modelLower))) == "gemini-4-hydrogen" {
+		return s.fallbackPrices["gemini-4-hydrogen"]
+	}
 	if modelLower == "jev-latest" {
 		return s.fallbackPrices["jev-latest"]
 	}
@@ -1256,7 +1280,7 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 	// OpenAI（GPT-5 / Codex 族）：仅匹配已知型号，避免未知 OpenAI 型号误计价。
 	if normalized := normalizeKnownOpenAICodexModel(modelLower); normalized != "" {
 		switch normalized {
-		case "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna":
+		case "gpt-6.1-terra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna":
 			return s.fallbackPrices[normalized]
 		case "gpt-6-astra":
 			return s.fallbackPrices["gpt-6-astra"]
@@ -1432,7 +1456,7 @@ func (s *BillingService) getModelPricingAt(model string, pricingAt time.Time) (*
 				InputPricePerTokenPriority:         litellmPricing.InputCostPerTokenPriority,
 				OutputPricePerToken:                litellmPricing.OutputCostPerToken,
 				OutputPricePerTokenPriority:        litellmPricing.OutputCostPerTokenPriority,
-				CacheCreationPriceExplicit:         (openai.IsGPT6SolOrLunaModelSpelling(model) || openai.IsGPT61SolModelSpelling(model)) && litellmPricing.CacheCreationInputTokenCostExplicit,
+				CacheCreationPriceExplicit:         (openai.IsGPT6SolOrLunaModelSpelling(model) || openai.IsGPT61SolModelSpelling(model) || openai.IsGPT61TerraModelSpelling(model)) && litellmPricing.CacheCreationInputTokenCostExplicit,
 				CacheCreationPricePerToken:         litellmPricing.CacheCreationInputTokenCost,
 				CacheCreationPricePerTokenPriority: litellmPricing.CacheCreationInputTokenCostPriority,
 				CacheReadPricePerToken:             litellmPricing.CacheReadInputTokenCost,
@@ -1952,7 +1976,7 @@ func (s *BillingService) applyModelSpecificPricingPolicyEx(model string, pricing
 		return &cloned
 	}
 	normalized := normalizeKnownOpenAICodexModel(model)
-	usesCacheWritePremium := isOpenAIGPT56Model(normalized) || (openai.IsGPT6SolOrLunaModelSpelling(normalized) || openai.IsGPT61SolModelSpelling(normalized))
+	usesCacheWritePremium := isOpenAIGPT56Model(normalized) || (openai.IsGPT6SolOrLunaModelSpelling(normalized) || openai.IsGPT61SolModelSpelling(normalized) || openai.IsGPT61TerraModelSpelling(normalized))
 	needsCacheCreationPolicy := usesCacheWritePremium && !pricing.CacheCreationPriceExplicit && (pricing.CacheCreationPricePerToken <= 0 ||
 		(pricing.InputPricePerTokenPriority > 0 && pricing.CacheCreationPricePerTokenPriority <= 0))
 	fastRatio := openAIModelFastPricingRatio(normalized)
@@ -1978,7 +2002,7 @@ func (s *BillingService) applyModelSpecificPricingPolicyEx(model string, pricing
 	}
 	if fastRatio > 0 {
 		enforceOpenAIFastPricingRatio(&cloned, fastRatio)
-		if (openai.IsGPT6SolOrLunaModelSpelling(normalized) || openai.IsGPT61SolModelSpelling(normalized)) && cloned.CacheCreationPriceExplicit {
+		if (openai.IsGPT6SolOrLunaModelSpelling(normalized) || openai.IsGPT61SolModelSpelling(normalized) || openai.IsGPT61TerraModelSpelling(normalized)) && cloned.CacheCreationPriceExplicit {
 			cloned.CacheCreationPricePerTokenPriority = cloned.CacheCreationPricePerToken * fastRatio
 		}
 	}
@@ -1990,7 +2014,7 @@ func (s *BillingService) applyModelSpecificPricingPolicyEx(model string, pricing
 // 档的模型（如 gpt-5.5-pro、gpt-5.4-mini/nano）返回 0。
 func openAIModelFastPricingRatio(normalized string) float64 {
 	switch normalized {
-	case "gpt-5.4", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna":
+	case "gpt-5.4", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6-astra", "gpt-6.1-terra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna":
 		return 2.0
 	case "gpt-5.5":
 		return 2.5

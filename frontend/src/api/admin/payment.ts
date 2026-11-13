@@ -9,7 +9,8 @@ import type {
   PaymentOrder,
   PaymentChannel,
   SubscriptionPlan,
-  ProviderInstance
+  ProviderInstance,
+  ManualOrderDetails
 } from '@/types/payment'
 import type { BasePaginationResponse } from '@/types'
 
@@ -103,6 +104,18 @@ export const adminPaymentAPI = {
   /** Get a specific order by ID */
   getOrder(id: number) {
     return apiClient.get<PaymentOrder>(`/admin/payment/orders/${id}`)
+  },
+
+  getManualOrder(id: number) {
+    return apiClient.get<ManualOrderDetails>(`/admin/payment/orders/${id}/manual`)
+  },
+
+  approveManualOrder(id: number, data: { transaction_no: string; received_amount: number; confirm_received: true; note?: string }) {
+    return apiClient.post<ManualOrderDetails>(`/admin/payment/orders/${id}/manual/approve`, data)
+  },
+
+  rejectManualOrder(id: number, data: { reason: string }) {
+    return apiClient.post<ManualOrderDetails>(`/admin/payment/orders/${id}/manual/reject`, data)
   },
 
   /** Cancel an order (admin) */

@@ -20,12 +20,15 @@ const (
 	TypeCard         PaymentType = "card"
 	TypeLink         PaymentType = "link"
 	TypeEasyPay      PaymentType = "easypay"
+	TypeManual       PaymentType = "manual"
 	TypeAirwallex    PaymentType = "airwallex"
 )
 
 // Order status constants shared across payment and service layers.
 const (
 	OrderStatusPending           = "PENDING"
+	OrderStatusPendingReview     = "PENDING_REVIEW"
+	OrderStatusRejected          = "REJECTED"
 	OrderStatusPaid              = "PAID"
 	OrderStatusRecharging        = "RECHARGING"
 	OrderStatusCompleted         = "COMPLETED"
@@ -121,9 +124,10 @@ type CreatePaymentRequest struct {
 type CreatePaymentResultType = string
 
 const (
-	CreatePaymentResultOrderCreated  CreatePaymentResultType = "order_created"
-	CreatePaymentResultOAuthRequired CreatePaymentResultType = "oauth_required"
-	CreatePaymentResultJSAPIReady    CreatePaymentResultType = "jsapi_ready"
+	CreatePaymentResultOrderCreated   CreatePaymentResultType = "order_created"
+	CreatePaymentResultManualRequired CreatePaymentResultType = "manual_required"
+	CreatePaymentResultOAuthRequired  CreatePaymentResultType = "oauth_required"
+	CreatePaymentResultJSAPIReady     CreatePaymentResultType = "jsapi_ready"
 )
 
 // WechatOAuthInfo describes the next step when WeChat OAuth is required before payment.
@@ -148,6 +152,8 @@ type WechatJSAPIPayload struct {
 
 // CreatePaymentResponse is returned after successfully initiating a payment.
 type CreatePaymentResponse struct {
+	QRCodeImg    string
+	IsManual     bool
 	TradeNo      string                  // Third-party transaction ID
 	PayURL       string                  // H5 payment URL (alipay/wxpay)
 	QRCode       string                  // QR code content for scanning

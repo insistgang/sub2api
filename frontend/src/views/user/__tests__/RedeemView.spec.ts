@@ -200,6 +200,21 @@ describe('RedeemView refresh after redemption', () => {
     wrapper.unmount()
   })
 
+  it('renders internal USD balance history as RMB using the site display rate', async () => {
+    getHistory.mockResolvedValue({ items: [{
+      id: 7, code: 'BALANCE-CODE', type: 'balance', value: 12.34, used_at: '2026-03-08T00:00:00Z',
+    }], total: 1 })
+
+    const wrapper = mount(RedeemView, {
+      global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Icon: true } },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('+¥12.34')
+    expect(wrapper.text()).not.toContain('$12.34')
+    wrapper.unmount()
+  })
+
   it('finishes normally without a warning when profile refresh succeeds', async () => {
     const wrapper = await submitCode()
 

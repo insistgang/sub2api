@@ -42,18 +42,20 @@ const (
 // /wham/usage. The upstream returns an explicit `null` window when the slot
 // is unused, so consumers should treat a nil pointer as "no data".
 type OpenAIRateLimitWindow struct {
-	UsedPercent        float64 `json:"used_percent"`
-	LimitWindowSeconds int64   `json:"limit_window_seconds"`
-	ResetAfterSeconds  int64   `json:"reset_after_seconds"`
-	ResetAt            int64   `json:"reset_at"`
+	UsedPercent           float64 `json:"used_percent"`
+	LimitWindowSeconds    int64   `json:"limit_window_seconds"`
+	ResetAfterSeconds     int64   `json:"reset_after_seconds"`
+	ResetAt               int64   `json:"reset_at"`
+	recoveryFieldsPresent bool
 }
 
 // OpenAIRateLimit is a rate-limit envelope (primary + optional secondary window).
 type OpenAIRateLimit struct {
-	Allowed         bool                   `json:"allowed"`
-	LimitReached    bool                   `json:"limit_reached"`
-	PrimaryWindow   *OpenAIRateLimitWindow `json:"primary_window,omitempty"`
-	SecondaryWindow *OpenAIRateLimitWindow `json:"secondary_window,omitempty"`
+	Allowed               bool                   `json:"allowed"`
+	LimitReached          bool                   `json:"limit_reached"`
+	PrimaryWindow         *OpenAIRateLimitWindow `json:"primary_window,omitempty"`
+	SecondaryWindow       *OpenAIRateLimitWindow `json:"secondary_window,omitempty"`
+	recoveryFieldsPresent bool
 }
 
 // OpenAIAdditionalRateLimit describes a per-feature rate limit (e.g. Codex Spark).

@@ -324,6 +324,8 @@ export async function getDashboardSnapshotV2(
 
 export interface BatchApiKeyUsageStats {
   api_key_id: number
+  today_cost: number
+  total_cost: number
   today_actual_cost: number
   total_actual_cost: number
 }

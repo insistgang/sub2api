@@ -7,7 +7,9 @@
 export interface ConfigFieldDef {
   key: string
   label: string
+  labelKey?: string
   sensitive: boolean
+  type?: 'qr_image'
   optional?: boolean
   clearable?: boolean
   defaultValue?: string
@@ -37,6 +39,7 @@ export interface CallbackPaths {
 
 /** Maps provider key → available payment types. */
 export const PROVIDER_SUPPORTED_TYPES: Record<string, string[]> = {
+  manual: ['alipay', 'wxpay'],
   easypay: ['alipay', 'wxpay'],
   alipay: ['alipay'],
   wxpay: ['wxpay'],
@@ -125,6 +128,13 @@ export const PROVIDER_CALLBACK_PATHS: Record<string, CallbackPaths> = {
 
 /** Per-provider config fields (excludes notifyUrl/returnUrl which are handled separately). */
 export const PROVIDER_CONFIG_FIELDS: Record<string, ConfigFieldDef[]> = {
+  manual: [
+    { key: 'alipayQRCode', label: '', labelKey: 'admin.settings.payment.manualAlipayQr', sensitive: false, optional: true, type: 'qr_image' },
+    { key: 'wxpayQRCode', label: '', labelKey: 'admin.settings.payment.manualWxpayQr', sensitive: false, optional: true, type: 'qr_image' },
+    { key: 'payeeName', label: '', labelKey: 'admin.settings.payment.manualPayeeName', sensitive: false },
+    { key: 'instructions', label: '', labelKey: 'admin.settings.payment.manualInstructions', sensitive: false, optional: true },
+    { key: 'currency', label: 'admin.settings.payment.field_currency', sensitive: false, defaultValue: 'CNY', options: [{ value: 'CNY', label: 'CNY' }] },
+  ],
   easypay: [
     { key: 'pid', label: 'PID', sensitive: false },
     { key: 'pkey', label: 'PKey', sensitive: true },
@@ -161,6 +171,21 @@ export const PROVIDER_CONFIG_FIELDS: Record<string, ConfigFieldDef[]> = {
     { key: 'currency', label: '', sensitive: false, defaultValue: 'CNY', hintKey: 'admin.settings.payment.field_paymentCurrencyHint', options: PAYMENT_CURRENCY_OPTIONS },
     { key: 'accountId', label: '', sensitive: false, optional: true, clearable: true, hintKey: 'admin.settings.payment.field_accountIdHint' },
   ],
+}
+
+export function isValidManualQrImageValue(value: string): boolean {
+  const input = value.trim()
+  if (/^https:\/\//i.test(input)) {
+    try {
+      const parsed = new URL(input)
+      return parsed.protocol === 'https:' && !!parsed.hostname && !parsed.username && !parsed.password
+    } catch { return false }
+  }
+  const match = input.match(/^data:image\/(png|jpeg);base64,([A-Za-z0-9+/]+={0,2})$/i)
+  if (!match) return false
+  const encoded = match[2]
+  const bytes = Math.floor(encoded.length * 3 / 4) - (encoded.endsWith('==') ? 2 : encoded.endsWith('=') ? 1 : 0)
+  return bytes > 0 && bytes <= 300 * 1024
 }
 
 // --- Helpers ---

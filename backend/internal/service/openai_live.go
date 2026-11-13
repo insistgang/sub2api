@@ -119,7 +119,16 @@ func ValidateLiveCallRequest(request *LiveCallRequest) error {
 	return nil
 }
 
-// CreateLiveCall 创建 Frameless 会话。调用方须在调用期间持有普通用户槽位；
+// acquireLiveCallLease keeps the account limit and all lease tracking intact,
+// while an authoritative admin owner uses the existing unbounded user budget.
+func acquireLiveCallLease(ctx context.Context, cache LiveConcurrencyCache, account *Account, identity LiveCallIdentity, userMax int, leaseID string) (bool, error) {
+	if identity.OwnerRole == RoleAdmin {
+		userMax = 0
+	}
+	return cache.AcquireLiveLease(ctx, account.ID, account.Concurrency, identity.UserID, userMax, identity.APIKeyID, leaseID, true)
+}
+
+// CreateLiveCall 创建 Frameless 会话。普通用户调用方须在调用期间持有用户槽位；
 // 调度器持有的普通账号槽位会被同一个 Live 租约原子接替。
 func (s *OpenAIGatewayService) CreateLiveCall(
 	ctx context.Context,
@@ -177,16 +186,7 @@ func (s *OpenAIGatewayService) CreateLiveCall(
 
 		account := selection.Account
 		leaseID := generateRequestID()
-		acquired, acquireErr := liveCache.AcquireLiveLease(
-			ctx,
-			account.ID,
-			account.Concurrency,
-			identity.UserID,
-			userMaxConcurrency,
-			identity.APIKeyID,
-			leaseID,
-			true,
-		)
+		acquired, acquireErr := acquireLiveCallLease(ctx, liveCache, account, identity, userMaxConcurrency, leaseID)
 		if acquireErr != nil || !acquired {
 			selection.ReleaseFunc()
 			if acquireErr != nil {

@@ -211,11 +211,11 @@
                         )
                       "
                       >{{
-                        formatUsd(usageMap.get(row.id)?.today_cost ?? 0)
+                        formatYuan(usageMap.get(row.id)?.today_cost ?? 0)
                       }}</span
                     >
                     <span class="text-gray-400 dark:text-gray-500">
-                      / {{ formatUsd(row.daily_limit_usd) }}/{{
+                      / {{ formatYuan(row.daily_limit_usd) }}/{{
                         t("admin.groups.limitDay")
                       }}</span
                     >
@@ -229,7 +229,7 @@
                     >·</span
                   >
                   <span v-if="row.weekly_limit_usd" class="whitespace-nowrap"
-                    >{{ formatUsd(row.weekly_limit_usd) }}/{{
+                    >{{ formatYuan(row.weekly_limit_usd) }}/{{
                       t("admin.groups.limitWeek")
                     }}</span
                   >
@@ -239,7 +239,7 @@
                     >·</span
                   >
                   <span v-if="row.monthly_limit_usd" class="whitespace-nowrap"
-                    >{{ formatUsd(row.monthly_limit_usd) }}/{{
+                    >{{ formatYuan(row.monthly_limit_usd) }}/{{
                       t("admin.groups.limitMonth")
                     }}</span
                   >
@@ -253,7 +253,7 @@
                     >{{
                       usageLoading
                         ? "—"
-                        : formatUsd(usageMap.get(row.id)?.total_cost ?? 0)
+                        : formatYuan(usageMap.get(row.id)?.total_cost ?? 0)
                     }}</span
                   >
                 </div>
@@ -340,7 +340,7 @@
                   t("admin.groups.usageToday")
                 }}</span>
                 <span class="ml-1 font-medium text-gray-700 dark:text-gray-300"
-                  >${{
+                  >¥{{
                     formatCost(usageMap.get(row.id)?.today_cost ?? 0)
                   }}</span
                 >
@@ -350,7 +350,7 @@
                   t("admin.groups.usageYesterday")
                 }}</span>
                 <span class="ml-1 font-medium text-gray-700 dark:text-gray-300"
-                  >${{
+                  >¥{{
                     formatCost(usageMap.get(row.id)?.yesterday_cost ?? 0)
                   }}</span
                 >
@@ -360,7 +360,7 @@
                   t("admin.groups.usageTotal")
                 }}</span>
                 <span class="ml-1 font-medium text-gray-700 dark:text-gray-300"
-                  >${{
+                  >¥{{
                     formatCost(usageMap.get(row.id)?.total_cost ?? 0)
                   }}</span
                 >
@@ -733,7 +733,7 @@
               <input
                 v-model.number="createForm.daily_limit_usd"
                 type="number"
-                step="0.01"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="t('admin.groups.subscription.noLimit')"
@@ -746,7 +746,7 @@
               <input
                 v-model.number="createForm.weekly_limit_usd"
                 type="number"
-                step="0.01"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="t('admin.groups.subscription.noLimit')"
@@ -759,7 +759,7 @@
               <input
                 v-model.number="createForm.monthly_limit_usd"
                 type="number"
-                step="0.01"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="t('admin.groups.subscription.noLimit')"
@@ -938,33 +938,33 @@
           </div>
           <div class="grid grid-cols-3 gap-3">
             <div>
-              <label class="input-label">1K ($)</label>
+              <label class="input-label">1K (¥)</label>
               <input
                 v-model.number="createForm.image_price_1k"
                 type="number"
-                step="0.001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="getImagePricePlaceholder(createForm.platform, 'image_price_1k')"
               />
             </div>
             <div>
-              <label class="input-label">2K ($)</label>
+              <label class="input-label">2K (¥)</label>
               <input
                 v-model.number="createForm.image_price_2k"
                 type="number"
-                step="0.001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="getImagePricePlaceholder(createForm.platform, 'image_price_2k')"
               />
             </div>
             <div>
-              <label class="input-label">4K ($)</label>
+              <label class="input-label">4K (¥)</label>
               <input
                 v-model.number="createForm.image_price_4k"
                 type="number"
-                step="0.001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="getImagePricePlaceholder(createForm.platform, 'image_price_4k')"
@@ -1082,33 +1082,33 @@
           </div>
           <div class="grid grid-cols-3 gap-3">
             <div>
-              <label class="input-label">480p ($/s)</label>
+              <label class="input-label">480p (¥/s)</label>
               <input
                 v-model.number="createForm.video_price_480p"
                 type="number"
-                step="0.001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="getVideoPricePlaceholder(createForm.platform, 'video_price_480p')"
               />
             </div>
             <div>
-              <label class="input-label">720p ($/s)</label>
+              <label class="input-label">720p (¥/s)</label>
               <input
                 v-model.number="createForm.video_price_720p"
                 type="number"
-                step="0.001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="getVideoPricePlaceholder(createForm.platform, 'video_price_720p')"
               />
             </div>
             <div>
-              <label class="input-label">1080p ($/s)</label>
+              <label class="input-label">1080p (¥/s)</label>
               <input
                 v-model.number="createForm.video_price_1080p"
                 type="number"
-                step="0.001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="getVideoPricePlaceholder(createForm.platform, 'video_price_1080p')"
@@ -1140,12 +1140,12 @@
                   class="block"
                 >
                   <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
-                    {{ resolution.label }} ($/s)
+                    {{ resolution.label }} (¥/s)
                   </span>
                   <input
                     v-model.number="createForm.video_model_prices[family.key][resolution.key]"
                     type="number"
-                    step="0.001"
+                    step="any"
                     min="0"
                     class="input"
                     :data-testid="`create-grok-video-price-${family.key}-${resolution.key}`"
@@ -1455,7 +1455,7 @@
             <input
               v-model.number="createForm.web_search_price_per_call"
               type="number"
-              step="0.001"
+              step="any"
               min="0"
               placeholder="0.01"
               class="input"
@@ -1512,7 +1512,7 @@
               <input
                 v-model.number="createForm.search_price_per_1k"
                 type="number"
-                step="0.000001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="t('admin.groups.explicitPricing.pricePlaceholder')"
@@ -1524,7 +1524,7 @@
               <input
                 v-model.number="createForm.audio_realtime_price_per_min"
                 type="number"
-                step="0.000001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="t('admin.groups.voicePricing.pricePlaceholder')"
@@ -1536,7 +1536,7 @@
               <input
                 v-model.number="createForm.audio_tts_price_per_million_chars"
                 type="number"
-                step="0.000001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="t('admin.groups.voicePricing.pricePlaceholder')"
@@ -1548,7 +1548,7 @@
               <input
                 v-model.number="createForm.audio_stt_price_per_hour"
                 type="number"
-                step="0.000001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="t('admin.groups.voicePricing.pricePlaceholder')"
@@ -2373,7 +2373,7 @@
               <input
                 v-model.number="editForm.daily_limit_usd"
                 type="number"
-                step="0.01"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="t('admin.groups.subscription.noLimit')"
@@ -2386,7 +2386,7 @@
               <input
                 v-model.number="editForm.weekly_limit_usd"
                 type="number"
-                step="0.01"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="t('admin.groups.subscription.noLimit')"
@@ -2399,7 +2399,7 @@
               <input
                 v-model.number="editForm.monthly_limit_usd"
                 type="number"
-                step="0.01"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="t('admin.groups.subscription.noLimit')"
@@ -2578,33 +2578,33 @@
           </div>
           <div class="grid grid-cols-3 gap-3">
             <div>
-              <label class="input-label">1K ($)</label>
+              <label class="input-label">1K (¥)</label>
               <input
                 v-model.number="editForm.image_price_1k"
                 type="number"
-                step="0.001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="getImagePricePlaceholder(editForm.platform, 'image_price_1k')"
               />
             </div>
             <div>
-              <label class="input-label">2K ($)</label>
+              <label class="input-label">2K (¥)</label>
               <input
                 v-model.number="editForm.image_price_2k"
                 type="number"
-                step="0.001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="getImagePricePlaceholder(editForm.platform, 'image_price_2k')"
               />
             </div>
             <div>
-              <label class="input-label">4K ($)</label>
+              <label class="input-label">4K (¥)</label>
               <input
                 v-model.number="editForm.image_price_4k"
                 type="number"
-                step="0.001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="getImagePricePlaceholder(editForm.platform, 'image_price_4k')"
@@ -2722,33 +2722,33 @@
           </div>
           <div class="grid grid-cols-3 gap-3">
             <div>
-              <label class="input-label">480p ($/s)</label>
+              <label class="input-label">480p (¥/s)</label>
               <input
                 v-model.number="editForm.video_price_480p"
                 type="number"
-                step="0.001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="getVideoPricePlaceholder(editForm.platform, 'video_price_480p')"
               />
             </div>
             <div>
-              <label class="input-label">720p ($/s)</label>
+              <label class="input-label">720p (¥/s)</label>
               <input
                 v-model.number="editForm.video_price_720p"
                 type="number"
-                step="0.001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="getVideoPricePlaceholder(editForm.platform, 'video_price_720p')"
               />
             </div>
             <div>
-              <label class="input-label">1080p ($/s)</label>
+              <label class="input-label">1080p (¥/s)</label>
               <input
                 v-model.number="editForm.video_price_1080p"
                 type="number"
-                step="0.001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="getVideoPricePlaceholder(editForm.platform, 'video_price_1080p')"
@@ -2780,12 +2780,12 @@
                   class="block"
                 >
                   <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
-                    {{ resolution.label }} ($/s)
+                    {{ resolution.label }} (¥/s)
                   </span>
                   <input
                     v-model.number="editForm.video_model_prices[family.key][resolution.key]"
                     type="number"
-                    step="0.001"
+                    step="any"
                     min="0"
                     class="input"
                     :data-testid="`edit-grok-video-price-${family.key}-${resolution.key}`"
@@ -3095,7 +3095,7 @@
             <input
               v-model.number="editForm.web_search_price_per_call"
               type="number"
-              step="0.001"
+              step="any"
               min="0"
               placeholder="0.01"
               class="input"
@@ -3162,7 +3162,7 @@
               <input
                 v-model.number="editForm.search_price_per_1k"
                 type="number"
-                step="0.000001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="t('admin.groups.explicitPricing.pricePlaceholder')"
@@ -3174,7 +3174,7 @@
               <input
                 v-model.number="editForm.audio_realtime_price_per_min"
                 type="number"
-                step="0.000001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="t('admin.groups.voicePricing.pricePlaceholder')"
@@ -3186,7 +3186,7 @@
               <input
                 v-model.number="editForm.audio_tts_price_per_million_chars"
                 type="number"
-                step="0.000001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="t('admin.groups.voicePricing.pricePlaceholder')"
@@ -3198,7 +3198,7 @@
               <input
                 v-model.number="editForm.audio_stt_price_per_hour"
                 type="number"
-                step="0.000001"
+                step="any"
                 min="0"
                 class="input"
                 :placeholder="t('admin.groups.voicePricing.pricePlaceholder')"
@@ -4271,6 +4271,7 @@ import { useAppStore } from "@/stores/app";
 import { useAuthStore } from "@/stores/auth";
 import { useOnboardingStore } from "@/stores/onboarding";
 import { adminAPI } from "@/api/admin";
+import { usdToCny, cnyToUsd } from "@/utils/displayCurrency";
 import type {
   AdminGroup,
   CodexModelsManifestConfig,
@@ -5448,7 +5449,7 @@ const formatImagePricePreview = (value: number | string | null | undefined) => {
   if (!Number.isFinite(price) || price < 0) {
     return t("admin.groups.imagePricing.notConfigured");
   }
-  return `$${price.toFixed(6).replace(/0+$/, "").replace(/\.$/, "")}`;
+  return `¥${usdToCny(price).toFixed(6).replace(/0+$/, "").replace(/\.$/, "")}`;
 };
 
 const formatVideoPricePreview = (value: number | string | null | undefined) => {
@@ -5459,7 +5460,7 @@ const formatVideoPricePreview = (value: number | string | null | undefined) => {
   if (!Number.isFinite(price) || price < 0) {
     return t("admin.groups.videoPricing.notConfigured");
   }
-  return `$${price.toFixed(6).replace(/0+$/, "").replace(/\.$/, "")}`;
+  return `¥${usdToCny(price).toFixed(6).replace(/0+$/, "").replace(/\.$/, "")}`;
 };
 
 const buildImageFinalPricePreview = (form: ImagePricingFormState) => {
@@ -5651,13 +5652,14 @@ const loadGroups = async () => {
 };
 
 const formatCost = (cost: number): string => {
+  cost = usdToCny(cost);
   if (cost >= 1000) return cost.toFixed(0);
   if (cost >= 100) return cost.toFixed(1);
   return cost.toFixed(2);
 };
 
-const formatUsd = (cost: number | null | undefined): string =>
-  `$${formatCost(cost ?? 0)}`;
+const formatYuan = (cost: number | null | undefined): string =>
+  `¥${formatCost(cost ?? 0)}`;
 
 const getQuotaUsageClass = (
   used: number,
@@ -5844,10 +5846,10 @@ const normalizeOptionalLimit = (
       return null;
     }
     const parsed = Number(trimmed);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    return Number.isFinite(parsed) && parsed > 0 ? cnyToUsd(parsed) : null;
   }
 
-  return Number.isFinite(value) && value > 0 ? value : null;
+  return Number.isFinite(value) && value > 0 ? cnyToUsd(value) : null;
 };
 
 const normalizeRateMultiplier = (
@@ -6067,9 +6069,9 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.is_exclusive = group.is_exclusive;
   editForm.status = group.status;
   editForm.subscription_type = group.subscription_type || "standard";
-  editForm.daily_limit_usd = group.daily_limit_usd;
-  editForm.weekly_limit_usd = group.weekly_limit_usd;
-  editForm.monthly_limit_usd = group.monthly_limit_usd;
+  editForm.daily_limit_usd = group.daily_limit_usd == null ? null : usdToCny(group.daily_limit_usd);
+  editForm.weekly_limit_usd = group.weekly_limit_usd == null ? null : usdToCny(group.weekly_limit_usd);
+  editForm.monthly_limit_usd = group.monthly_limit_usd == null ? null : usdToCny(group.monthly_limit_usd);
   editForm.long_context_pricing_enabled =
     group.long_context_pricing_enabled ?? true;
   editForm.force_openai_fast = group.force_openai_fast ?? false;

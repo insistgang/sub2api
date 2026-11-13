@@ -900,12 +900,21 @@ func (s *AccountUsageService) probeOpenAICodexSnapshot(ctx context.Context, acco
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	return s.handleOpenAICodexProbeResponse(ctx, account, resp)
+}
+
+func (s *AccountUsageService) handleOpenAICodexProbeResponse(ctx context.Context, observed *Account, resp *http.Response) (map[string]any, error) {
 	updates, err := extractOpenAICodexProbeUpdates(resp)
 	if err != nil {
 		return nil, err
 	}
 	if len(updates) > 0 {
-		s.persistOpenAICodexProbeSnapshot(account.ID, updates)
+		if healthyOpenAICodexProbeResponse(resp) {
+			if err := clearOpenAIRateLimitAfterRecovery(ctx, s.accountRepo, observed); err != nil {
+				slog.Warn("openai_probe_rate_limit_recovery_failed", "account_id", observed.ID, "error", err)
+			}
+		}
+		s.persistOpenAICodexProbeSnapshot(observed.ID, updates)
 		return updates, nil
 	}
 	return nil, nil

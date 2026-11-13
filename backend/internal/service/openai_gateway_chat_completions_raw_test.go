@@ -1245,6 +1245,147 @@ func largeRawChatCompletionsBody() []byte {
 		`"}],"stream":true}`)
 }
 
+type miniMaxMetadataFailWriter struct {
+	gin.ResponseWriter
+}
+
+func (w *miniMaxMetadataFailWriter) WriteString(line string) (int, error) {
+	if strings.Contains(line, `"base_resp"`) {
+		return 0, errors.New("fixture client write failure")
+	}
+	return w.ResponseWriter.WriteString(line)
+}
+
+func TestForwardAsRawChatCompletions_MiniMaxCompletion(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	content := `{"id":"fixture","model":"MiniMax-M3","choices":[{"index":0,"delta":{"content":"fixture"},"finish_reason":null}]}`
+	finished := `{"id":"fixture","model":"MiniMax-M3","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_fixture","type":"function","function":{"name":"diagnostic_ping","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}`
+	metadata := `{"id":"fixture","model":"MiniMax-M3","choices":[],"usage":{"prompt_tokens":427,"completion_tokens":20,"total_tokens":447},"base_resp":{"status_code":0,"status_msg":""}}`
+	nativeUsage := strings.Replace(metadata, `,"base_resp":{"status_code":0,"status_msg":""}`, "", 1)
+	filteredFinish := `{"id":"fixture","model":"MiniMax-M3","choices":[{"index":0,"delta":{},"finish_reason":"content_filter"}]}`
+	legacyFinish := `{"id":"fixture","model":"MiniMax-M3","choices":[{"index":0,"delta":{"function_call":{"name":"diagnostic_ping","arguments":"{}"}},"finish_reason":"function_call"}]}`
+	sse := func(payloads ...string) string {
+		return "data: " + strings.Join(payloads, "\n\ndata: ") + "\n\n"
+	}
+	complete := sse(content, finished, metadata)
+	fragmented := sse(
+		`{"id":"fixture","model":"MiniMax-M3","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_fixture","type":"function","function":{"name":"diagnostic_ping","arguments":"{"}}]},"finish_reason":null}]}`,
+		`{"id":"fixture","model":"MiniMax-M3","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"","type":"function","function":{"name":"","arguments":"}"}}]},"finish_reason":"tool_calls"}]}`,
+		metadata,
+	)
+	for _, test := range []struct {
+		name             string
+		stream           string
+		choices          int
+		readErr          error
+		cancel           bool
+		writerFails      bool
+		otherPlatform    bool
+		fragmentedTool   bool
+		terminalReason   string
+		wantErr          bool
+		wantDone         int
+		wantOutputTokens int
+	}{
+		{name: "clean EOF adds done", stream: complete, wantDone: 1, wantOutputTokens: 20},
+		{name: "existing done is not duplicated", stream: complete + "data: [DONE]\n\n", wantDone: 1, wantOutputTokens: 20},
+		{name: "native done needs no base_resp", stream: sse(content, finished, nativeUsage, "[DONE]"), wantDone: 1, wantOutputTokens: 20},
+		{name: "existing done without separator is framed", stream: complete + "data: [DONE]", wantDone: 1, wantOutputTokens: 20},
+		{name: "EOF without final separator is framed", stream: strings.TrimRight(complete, "\n"), wantDone: 1, wantOutputTokens: 20},
+		{name: "tool delta identities remain intact", stream: fragmented, fragmentedTool: true, wantDone: 1, wantOutputTokens: 20},
+		{name: "content filter is terminal", stream: sse(content, filteredFinish, metadata), terminalReason: "content_filter", wantDone: 1, wantOutputTokens: 20},
+		{name: "legacy function call is terminal", stream: sse(content, legacyFinish, metadata), terminalReason: "function_call", wantDone: 1, wantOutputTokens: 20},
+		{name: "content filter still needs metadata", stream: sse(content, filteredFinish), wantErr: true},
+		{name: "legacy function call still needs metadata", stream: sse(content, legacyFinish), wantErr: true},
+		{name: "content filter still needs clean EOF", stream: sse(content, filteredFinish, metadata), readErr: errors.New("fixture upstream read failure"), wantErr: true, wantOutputTokens: 20},
+		{name: "legacy function call still needs clean EOF", stream: sse(content, legacyFinish, metadata), readErr: errors.New("fixture upstream read failure"), wantErr: true, wantOutputTokens: 20},
+		{name: "usage alone is insufficient", stream: sse(metadata), wantErr: true, wantOutputTokens: 20},
+		{name: "null finish is insufficient", stream: sse(content, metadata), wantErr: true, wantOutputTokens: 20},
+		{name: "finish without successful metadata is insufficient", stream: sse(content, finished), wantErr: true},
+		{name: "nonzero provider status fails", stream: sse(content, finished, strings.Replace(metadata, `"status_code":0`, `"status_code":2067`, 1)), wantErr: true, wantOutputTokens: 20},
+		{name: "malformed metadata fails", stream: sse(content, finished, strings.Replace(metadata, `"status_code":0`, `"status_code":"invalid"`, 1)), wantErr: true, wantOutputTokens: 20},
+		{name: "unknown finish fails", stream: sse(content, strings.Replace(finished, `"finish_reason":"tool_calls"`, `"finish_reason":"error"`, 1), metadata), wantErr: true, wantOutputTokens: 20},
+		{name: "malformed JSON after finish fails", stream: complete + "data: {invalid}\n\n", wantErr: true, wantOutputTokens: 20},
+		{name: "error after finish fails", stream: complete + sse(`{"error":{"message":"fixture provider failure"}}`), wantErr: true, wantOutputTokens: 20},
+		{name: "error event after finish fails", stream: complete + "event: error\ndata: {}\n\n", wantErr: true, wantOutputTokens: 20},
+		{name: "read error after finish fails", stream: complete, readErr: errors.New("fixture upstream read failure"), wantErr: true, wantOutputTokens: 20},
+		{name: "upstream deadline is not client cancellation", stream: complete, readErr: context.DeadlineExceeded, wantErr: true, wantOutputTokens: 20},
+		{name: "upstream cancellation is not client cancellation", stream: complete, readErr: context.Canceled, wantErr: true, wantOutputTokens: 20},
+		{name: "semantic data after finish fails", stream: complete + sse(content), wantErr: true, wantOutputTokens: 20},
+		{name: "unfinished second choice fails", choices: 2, stream: sse(finished, strings.Replace(content, `"index":0`, `"index":1`, 1), metadata), wantErr: true, wantOutputTokens: 20},
+		{name: "missing second choice fails", choices: 2, stream: sse(finished, metadata), wantErr: true, wantOutputTokens: 20},
+		{name: "all choices finish", choices: 2, stream: sse(finished, strings.Replace(finished, `"index":0`, `"index":1`, 1), metadata), wantDone: 1, wantOutputTokens: 20},
+		{name: "client cancellation preserves billing without done", stream: complete, cancel: true, wantOutputTokens: 20},
+		{name: "cancelled reader preserves billing without done", stream: complete, cancel: true, readErr: context.Canceled, wantOutputTokens: 20},
+		{name: "client write failure preserves billing without done", stream: complete, writerFails: true, wantOutputTokens: 20},
+		{name: "other providers keep EOF tolerance", stream: complete, otherPlatform: true, wantOutputTokens: 20},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			choiceCount := test.choices
+			if choiceCount == 0 {
+				choiceCount = 1
+			}
+			body := []byte(fmt.Sprintf(`{"model":"workbuddy-alias","messages":[{"role":"user","content":"fixture"}],"stream":true,"n":%d}`, choiceCount))
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body)).WithContext(ctx)
+			if test.cancel {
+				cancel()
+			}
+			if test.writerFails {
+				c.Writer = &miniMaxMetadataFailWriter{ResponseWriter: c.Writer}
+			}
+			reader := io.ReadCloser(io.NopCloser(strings.NewReader(test.stream)))
+			if test.readErr != nil {
+				reader = &openAIChatStreamReadErrorCloser{payload: []byte(test.stream), err: test.readErr}
+			}
+			upstream := &httpUpstreamRecorder{resp: &http.Response{
+				StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: reader,
+			}}
+			service := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+			account := rawChatCompletionsTestAccount()
+			account.Platform = PlatformMiniMax
+			if test.otherPlatform {
+				account.Platform = PlatformDeepseek
+			}
+			account.Credentials["model_mapping"] = map[string]any{"workbuddy-alias": "MiniMax-M3"}
+			result, err := service.forwardAsRawChatCompletions(ctx, c, account, body, "")
+			if test.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.NotNil(t, result, "collected usage must remain available for billing")
+			require.Equal(t, test.wantOutputTokens, result.Usage.OutputTokens)
+			downstream := recorder.Body.String()
+			require.Equal(t, test.wantDone, strings.Count(downstream, "data: [DONE]"))
+			if test.wantDone > 0 {
+				require.True(t, strings.HasSuffix(downstream, "\n\ndata: [DONE]\n\n"), downstream)
+				require.Contains(t, downstream, `"model":"workbuddy-alias"`)
+				require.NotContains(t, downstream, `"model":"MiniMax-M3"`)
+				if test.terminalReason != "" {
+					require.Contains(t, downstream, `"finish_reason":"`+test.terminalReason+`"`)
+				}
+				if test.terminalReason == "content_filter" {
+					require.Contains(t, downstream, `"content":"fixture"`)
+				} else {
+					require.Contains(t, downstream, `"name":"diagnostic_ping"`)
+					if test.fragmentedTool {
+						require.NotContains(t, downstream, `"id":""`)
+						require.NotContains(t, downstream, `"name":""`)
+						require.Contains(t, downstream, `"arguments":"{"`)
+						require.Contains(t, downstream, `"arguments":"}"`)
+					} else {
+						require.Contains(t, downstream, `"arguments":"{}"`)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestForwardAsRawChatCompletions_RestoresMappedResponseModel(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	for _, stream := range []bool{false, true} {

@@ -175,6 +175,19 @@ func (s *authCacheStub) SubscribeAuthCacheInvalidation(ctx context.Context, hand
 	return nil
 }
 
+// cleanupAPIKeyAuthCaches stops the Ristretto workers owned by a test fixture.
+func cleanupAPIKeyAuthCaches(t *testing.T, svc *APIKeyService) {
+	t.Helper()
+	t.Cleanup(func() {
+		if svc.authCacheL1 != nil {
+			svc.authCacheL1.Close()
+		}
+		if svc.authNegativeCacheL1 != nil {
+			svc.authNegativeCacheL1.Close()
+		}
+	})
+}
+
 func TestAPIKeyService_GetByKey_UsesL2Cache(t *testing.T) {
 	cache := &authCacheStub{}
 	repo := &authRepoStub{
@@ -189,6 +202,7 @@ func TestAPIKeyService_GetByKey_UsesL2Cache(t *testing.T) {
 		},
 	}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+	cleanupAPIKeyAuthCaches(t, svc)
 
 	groupID := int64(9)
 	cacheEntry := &APIKeyAuthCacheEntry{
@@ -413,6 +427,7 @@ func TestAPIKeyService_GetByKey_NegativeCache(t *testing.T) {
 		},
 	}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+	cleanupAPIKeyAuthCaches(t, svc)
 	cache.getAuthCache = func(ctx context.Context, key string) (*APIKeyAuthCacheEntry, error) {
 		return &APIKeyAuthCacheEntry{NotFound: true}, nil
 	}
@@ -446,6 +461,7 @@ func TestAPIKeyService_GetByKey_CacheMissStoresL2(t *testing.T) {
 		},
 	}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+	cleanupAPIKeyAuthCaches(t, svc)
 	cache.getAuthCache = func(ctx context.Context, key string) (*APIKeyAuthCacheEntry, error) {
 		return nil, redis.Nil
 	}
@@ -483,6 +499,7 @@ func TestAPIKeyService_GetByKey_UsesL1Cache(t *testing.T) {
 		},
 	}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+	cleanupAPIKeyAuthCaches(t, svc)
 	require.NotNil(t, svc.authCacheL1)
 
 	_, err := svc.GetByKey(context.Background(), "k-l1")
@@ -510,6 +527,7 @@ func TestAPIKeyService_InvalidateAuthCacheByUserID(t *testing.T) {
 		},
 	}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+	cleanupAPIKeyAuthCaches(t, svc)
 
 	svc.InvalidateAuthCacheByUserID(context.Background(), 7)
 	require.Len(t, cache.deleteAuthKeys, 2)
@@ -569,6 +587,7 @@ func TestAPIKeyService_GetByKey_CachesNegativeOnRepoMiss(t *testing.T) {
 		},
 	}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+	cleanupAPIKeyAuthCaches(t, svc)
 	cache.getAuthCache = func(ctx context.Context, key string) (*APIKeyAuthCacheEntry, error) {
 		return nil, redis.Nil
 	}

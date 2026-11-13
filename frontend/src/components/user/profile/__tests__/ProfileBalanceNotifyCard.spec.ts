@@ -2,20 +2,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import ProfileBalanceNotifyCard from '../ProfileBalanceNotifyCard.vue'
 
-const { sendNotifyEmailCode, verifyNotifyEmail, getProfile } = vi.hoisted(() => ({
+const { sendNotifyEmailCode, verifyNotifyEmail, getProfile, updateProfile } = vi.hoisted(() => ({
   sendNotifyEmailCode: vi.fn(),
   verifyNotifyEmail: vi.fn(),
-  getProfile: vi.fn()
+  getProfile: vi.fn(),
+  updateProfile: vi.fn()
 }))
 
 vi.mock('@/api', () => ({
-  userAPI: { sendNotifyEmailCode, verifyNotifyEmail, getProfile }
+  userAPI: { sendNotifyEmailCode, verifyNotifyEmail, getProfile, updateProfile }
 }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ user: null }) }))
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({ showSuccess: vi.fn(), showError: vi.fn() })
 }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock('@/utils/displayCurrency', () => ({
+  usdToCny: (amount: number) => amount * 5,
+  cnyToUsd: (amount: number) => amount / 5,
+}))
 
 enableAutoUnmount(afterEach)
 
@@ -37,11 +42,39 @@ describe('ProfileBalanceNotifyCard', () => {
     vi.resetAllMocks()
     sendNotifyEmailCode.mockResolvedValue({})
     getProfile.mockResolvedValue({ balance_notify_extra_emails: [] })
+    updateProfile.mockResolvedValue({})
   })
 
   afterEach(() => {
     vi.clearAllTimers()
     vi.useRealTimers()
+  })
+
+  it('converts the saved USD threshold for display and converts the edited CNY value back on save', async () => {
+    const wrapper = mount(ProfileBalanceNotifyCard, {
+      props: { enabled: true, threshold: 2, extraEmails: [], systemDefaultThreshold: 5, userEmail: '' }
+    })
+    const input = wrapper.get('input[type="number"]')
+    expect((input.element as HTMLInputElement).value).toBe('10')
+    await input.setValue(15)
+    await button(wrapper, 'common.save').trigger('click')
+    await flushPromises()
+    expect(updateProfile).toHaveBeenCalledWith({ balance_notify_threshold: 3 })
+  })
+
+  it('preserves a zero threshold and leaves a null threshold blank', async () => {
+    const zero = mount(ProfileBalanceNotifyCard, {
+      props: { enabled: true, threshold: 0, extraEmails: [], systemDefaultThreshold: 0, userEmail: '' }
+    })
+    expect((zero.get('input[type="number"]').element as HTMLInputElement).value).toBe('0')
+    await button(zero, 'common.save').trigger('click')
+    await flushPromises()
+    expect(updateProfile).toHaveBeenCalledWith({ balance_notify_threshold: 0 })
+
+    const empty = mount(ProfileBalanceNotifyCard, {
+      props: { enabled: true, threshold: null, extraEmails: [], systemDefaultThreshold: 0, userEmail: '' }
+    })
+    expect((empty.get('input[type="number"]').element as HTMLInputElement).value).toBe('')
   })
 
   it.each(['remove', 'unmount'])('does not start a pending email timer after %s', async (action) => {

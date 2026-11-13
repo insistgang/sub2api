@@ -92,4 +92,29 @@ describe('AnnouncementReadStatusDialog', () => {
 
     expect(getReadStatus).toHaveBeenCalledTimes(1)
   })
+
+  it('shows internal user balance as CNY', async () => {
+    getReadStatus.mockResolvedValue({
+      items: [{ user_id: 1, email: 'reader@example.com', username: 'reader', balance: 12.34, eligible: true }],
+      total: 1,
+      pages: 1,
+      page: 1,
+      page_size: 20,
+    })
+    const wrapper = mount(AnnouncementReadStatusDialog, {
+      props: { show: true, announcementId: 1 },
+      global: {
+        stubs: {
+          BaseDialog: BaseDialogStub,
+          DataTable: { props: ['columns', 'data'], template: '<div><slot name="cell-balance" :value="12.34" /></div>' },
+          Pagination: true,
+          Icon: true,
+        },
+      },
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('¥12.34')
+    expect(wrapper.text()).not.toContain('$12.34')
+    wrapper.unmount()
+  })
 })

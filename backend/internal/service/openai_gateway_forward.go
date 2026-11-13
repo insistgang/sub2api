@@ -19,6 +19,14 @@ import (
 
 // Forward forwards request to OpenAI API
 func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (*OpenAIForwardResult, error) {
+	// Terra API effort validation must run before normalization discards an unsupported selection.
+	mappedModel := normalizeOpenAIModelForUpstream(account, account.GetMappedModel(gjson.GetBytes(body, "model").String()))
+	if openai.IsGPT61TerraModelSpelling(mappedModel) {
+		if err := validateGPT61TerraCompatRequest(body, mappedModel); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "invalid_request_error", "message": err.Error()}})
+			return nil, err
+		}
+	}
 	beginUpstreamResponseModelObservation(c)
 	ClearActualOpenAIUpstreamEndpoint(c)
 	if shouldForwardOpenAIResponsesViaRawChatCompletions(account) {

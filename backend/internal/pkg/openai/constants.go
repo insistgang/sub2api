@@ -25,6 +25,7 @@ var DefaultModels = []Model{
 	{ID: "gpt-5.6", Object: "model", Created: 1780876800, OwnedBy: "openai", Type: "model", DisplayName: "GPT-5.6 (Sol)"},
 	{ID: "gpt-5.6-terra", Object: "model", Created: 1780876800, OwnedBy: "openai", Type: "model", DisplayName: "GPT-5.6 Terra"},
 	{ID: "gpt-5.6-luna", Object: "model", Created: 1780876800, OwnedBy: "openai", Type: "model", DisplayName: "GPT-5.6 Luna"},
+	{ID: "gpt-6.1-terra", Object: "model", Created: 1793059200, OwnedBy: "openai", Type: "model", DisplayName: "GPT-6.1 Terra"},
 	{ID: "gpt-6.1-sol", Object: "model", Created: 1790640000, OwnedBy: "openai", Type: "model", DisplayName: "GPT-6.1 Sol"},
 	{ID: "gpt-6-sol", Object: "model", Created: 1790035200, OwnedBy: "openai", Type: "model", DisplayName: "GPT-6 Sol"},
 	{ID: "gpt-6-luna", Object: "model", Created: 1790035200, OwnedBy: "openai", Type: "model", DisplayName: "GPT-6 Luna"},
@@ -86,6 +87,11 @@ var instructionsGPT6Astra string
 //
 //go:embed codex_gpt61_sol.json
 var CodexGPT61SolMetadata []byte
+
+// CodexGPT61TerraMetadata preserves the public upstream Codex descriptor fetched 2026-10-27.
+//
+//go:embed codex_gpt61_terra.json
+var CodexGPT61TerraMetadata []byte
 
 // latestCodexInstructions 返回当前已知最新版本的 Codex base instructions，
 // 当前为 GPT-5.5；若 5.5 prompt 意外为空则回退到 DefaultInstructions 保证非空。
@@ -149,6 +155,16 @@ func CanonicalizeOpenAIModelAliasSpelling(model string) string {
 func CodexBaseInstructionsForModel(model string) string {
 	canonical := CanonicalizeOpenAIModelAliasSpelling(model)
 	switch {
+	case IsGPT61TerraModelSpelling(canonical):
+		var metadata struct {
+			ModelMessages struct {
+				InstructionsTemplate string `json:"instructions_template"`
+			} `json:"model_messages"`
+		}
+		if err := json.Unmarshal(CodexGPT61TerraMetadata, &metadata); err != nil {
+			panic(err)
+		}
+		return metadata.ModelMessages.InstructionsTemplate
 	case IsGPT61SolModelSpelling(canonical):
 		var metadata struct {
 			ModelMessages struct {

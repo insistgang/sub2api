@@ -32,8 +32,8 @@
       <!-- Toggles + Payment mode + Supported types (single row) -->
       <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
         <ToggleSwitch :label="t('common.enabled')" :checked="form.enabled" @toggle="form.enabled = !form.enabled" />
-        <ToggleSwitch :label="t('admin.settings.payment.refundEnabled')" :checked="form.refund_enabled" @toggle="form.refund_enabled = !form.refund_enabled; if (!form.refund_enabled) form.allow_user_refund = false" />
-        <ToggleSwitch v-if="form.refund_enabled" :label="t('admin.settings.payment.allowUserRefund')" :checked="form.allow_user_refund" @toggle="form.allow_user_refund = !form.allow_user_refund" />
+        <ToggleSwitch v-if="!isManualProvider" :label="t('admin.settings.payment.refundEnabled')" :checked="form.refund_enabled" @toggle="form.refund_enabled = !form.refund_enabled; if (!form.refund_enabled) form.allow_user_refund = false" />
+        <ToggleSwitch v-if="!isManualProvider && form.refund_enabled" :label="t('admin.settings.payment.allowUserRefund')" :checked="form.allow_user_refund" @toggle="form.allow_user_refund = !form.allow_user_refund" />
         <div v-if="supportsPaymentMode" class="flex items-center gap-2">
           <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.settings.payment.paymentMode') }}</span>
           <div class="flex gap-1.5">
@@ -159,8 +159,13 @@
               <span v-if="field.optional" class="text-xs text-gray-400">({{ t('common.optional') }})</span>
               <span v-else class="text-red-500"> *</span>
             </label>
+            <div v-if="field.type === 'qr_image'" class="space-y-2">
+              <ImageUpload v-model="config[field.key]" mode="image" :max-size="300 * 1024" :hint="t('admin.settings.payment.manualQrUploadHint')" />
+              <input v-model="config[field.key]" type="url" class="input" placeholder="https://example.com/qr.png" />
+            </div>
+            <textarea v-else-if="field.key === 'instructions'" v-model="config[field.key]" rows="3" class="input" />
             <textarea
-              v-if="field.sensitive && field.key.toLowerCase().includes('key') && field.key !== 'pkey'"
+              v-else-if="field.sensitive && field.key.toLowerCase().includes('key') && field.key !== 'pkey'"
               v-model="config[field.key]"
               rows="3"
               class="input font-mono text-xs"
@@ -312,6 +317,7 @@ import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import Select from '@/components/common/Select.vue'
 import type { SelectOption } from '@/components/common/Select.vue'
 import ToggleSwitch from './ToggleSwitch.vue'
+import ImageUpload from '@/components/common/ImageUpload.vue'
 import type { ProviderInstance } from '@/types/payment'
 import type { EasyPayCustomMethod, TypeOption } from './providerConfig'
 import {
@@ -327,6 +333,7 @@ import {
   extractBaseUrl,
   parseEasyPayCustomMethods,
   serializeEasyPayCustomMethods,
+  isValidManualQrImageValue,
 } from './providerConfig'
 
 /** Default payment_mode per provider key — "" means "no preference, use
@@ -432,6 +439,7 @@ const providerWebhookHint = computed(() =>
 const callbackPaths = computed(() => PROVIDER_CALLBACK_PATHS[form.provider_key] || null)
 
 const supportsPaymentMode = computed(() => providerSupportsPaymentMode(form.provider_key))
+const isManualProvider = computed(() => form.provider_key === 'manual')
 
 const paymentModeOptions = computed(() => {
   if (form.provider_key === 'alipay') {
@@ -472,7 +480,7 @@ const resolvedFields = computed(() => {
   const fields = PROVIDER_CONFIG_FIELDS[form.provider_key] || []
   return fields.map(f => ({
     ...f,
-    label: f.label || t(`admin.settings.payment.field_${f.key}`),
+    label: f.labelKey ? t(f.labelKey) : f.label || t(`admin.settings.payment.field_${f.key}`),
   }))
 })
 
@@ -676,9 +684,20 @@ function handleSave() {
     if (props.editing && f.sensitive) continue
     const val = (config[f.key] || '').trim()
     if (!val) {
-      const label = f.label || t(`admin.settings.payment.field_${f.key}`)
+      const label = f.labelKey ? t(f.labelKey) : f.label || t(`admin.settings.payment.field_${f.key}`)
       emitValidationError(t('admin.settings.payment.validationFieldRequired', { field: label }))
       return
+    }
+  }
+
+  if (form.provider_key === 'manual' && form.enabled) {
+    const imageByType: Record<string, string> = { alipay: 'alipayQRCode', wxpay: 'wxpayQRCode' }
+    for (const type of form.supported_types) {
+      const imageValue = config[imageByType[type]] || ''
+      if (!isValidManualQrImageValue(imageValue)) {
+        emitValidationError(t('admin.settings.payment.validationManualQrRequired', { method: t(`payment.methods.${type}`) }))
+        return
+      }
     }
   }
 
@@ -719,8 +738,8 @@ function handleSave() {
     supported_types: form.supported_types,
     enabled: form.enabled,
     payment_mode: supportsPaymentMode.value ? form.payment_mode : '',
-    refund_enabled: form.refund_enabled,
-    allow_user_refund: form.refund_enabled ? form.allow_user_refund : false,
+    refund_enabled: isManualProvider.value ? false : form.refund_enabled,
+    allow_user_refund: !isManualProvider.value && form.refund_enabled ? form.allow_user_refund : false,
     config: filteredConfig,
     limits: serializeLimits(),
   })

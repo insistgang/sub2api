@@ -52,7 +52,28 @@ function orderFactory(overrides: Partial<PaymentOrder> = {}): PaymentOrder {
 }
 
 describe('admin order currency display', () => {
-  it('uses order currency for paid/base/fee amounts and USD for credited/refund amounts', () => {
+  it.each([
+    ['USD', 'balance', true],
+    ['HKD', 'balance', true],
+    ['CNY', 'balance', false],
+    ['RMB', 'balance', false],
+    ['USD', 'subscription', false],
+  ] as const)('preserves equal-number foreign payment and CNY credit in admin table and detail: %s/%s', (currency, order_type, visible) => {
+    const order = orderFactory({ amount: 10, pay_amount: 10, bonus_amount: 0, fee_rate: 0, refund_amount: 0, currency, order_type })
+    const table = mount(AdminOrderTable, {
+      props: { orders: [order], loading: false, page: 1, pageSize: 20, total: 1 },
+      global: { stubs: { DataTable: DataTableStub, Icon: true, Pagination: true, Select: true } },
+    })
+    const detail = mount(AdminOrderDetail, {
+      props: { show: true, order },
+      global: { stubs: { BaseDialog: BaseDialogStub } },
+    })
+    for (const wrapper of [table, detail]) {
+      expect(wrapper.text().includes('payment.orders.creditedAmount')).toBe(visible)
+      if (visible) expect(wrapper.text()).toContain('¥10.00')
+    }
+  })
+  it('uses order currency for paid/base/fee amounts and CNY for credited/refund balance amounts', () => {
     const wrapper = mount(AdminOrderDetail, {
       props: {
         show: true,
@@ -69,11 +90,11 @@ describe('admin order currency display', () => {
     expect(text).toContain('¥100.00')
     expect(text).toContain('¥8.00')
     expect(text).toContain('¥108.00')
-    expect(text).toContain('$100.00')
-    expect(text).toContain('$25.00')
+    expect(text).toContain('¥100.00')
+    expect(text).toContain('¥25.00')
   })
 
-  it('uses order currency for pay_amount and USD for refundable balance amounts', () => {
+  it('uses order currency for pay_amount and CNY for refundable balance amounts', () => {
     const wrapper = mount(AdminRefundDialog, {
       props: {
         show: true,
@@ -93,10 +114,10 @@ describe('admin order currency display', () => {
 
     const text = wrapper.text()
     expect(text).toContain('$108.00')
-    expect(text).toContain('$100.00')
-    expect(text).toContain('$20.00')
-    expect(text).toContain('$80.00')
-    expect(text).toContain('$200.00')
+    expect(text).toContain('¥100.00')
+    expect(text).toContain('¥20.00')
+    expect(text).toContain('¥80.00')
+    expect(text).toContain('¥200.00')
   })
 
   it('renders payment currency consistently in the shared order table', () => {
@@ -120,7 +141,7 @@ describe('admin order currency display', () => {
     const text = wrapper.text()
     expect(text).toContain('$108.00')
     expect(text).toContain('¥108.00')
-    expect(text).toContain('$100.00')
+    expect(text).toContain('¥100.00')
   })
 
   it('renders payment currency consistently in the admin order table', () => {
@@ -148,6 +169,6 @@ describe('admin order currency display', () => {
     const text = wrapper.text()
     expect(text).toContain('$108.00')
     expect(text).toContain('¥108.00')
-    expect(text).toContain('$100.00')
+    expect(text).toContain('¥100.00')
   })
 })

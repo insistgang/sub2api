@@ -74,19 +74,20 @@
                   {{ formatTokens(group.total_tokens) }}
                 </td>
                 <td class="py-1.5 text-right text-green-600 dark:text-green-400">
-                  ${{ formatCost(group.actual_cost) }}
+                  {{ currencySymbol }}{{ formatCost(group.actual_cost) }}
                 </td>
                 <td v-if="showAccountCost" class="py-1.5 text-right text-orange-500 dark:text-orange-400">
-                  ${{ formatCost(group.account_cost) }}
+                  {{ currencySymbol }}{{ formatCost(group.account_cost) }}
                 </td>
                 <td class="py-1.5 text-right text-gray-400 dark:text-gray-500">
-                  ${{ formatCost(group.cost) }}
+                  {{ currencySymbol }}{{ formatCost(group.cost) }}
                 </td>
               </tr>
               <!-- User breakdown sub-rows -->
               <tr v-if="expandedKey === `group-${group.group_id}`">
                 <td :colspan="distributionColspan" class="p-0">
                   <UserBreakdownSubTable
+                    :display-currency="displayCurrency"
                     :items="breakdownItems"
                     :loading="breakdownLoading"
                     :show-account-cost="showAccountCost"
@@ -110,6 +111,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { usdToCny } from '@/utils/displayCurrency'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
 import { Doughnut } from 'vue-chartjs'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -125,6 +127,7 @@ type DistributionMetric = 'tokens' | 'actual_cost'
 
 const props = withDefaults(defineProps<{
   groupStats: GroupStat[]
+  displayCurrency?: 'USD' | 'CNY'
   loading?: boolean
   metric?: DistributionMetric
   showMetricToggle?: boolean
@@ -134,6 +137,7 @@ const props = withDefaults(defineProps<{
   endDate?: string
   filters?: Record<string, any>
 }>(), {
+  displayCurrency: 'CNY',
   loading: false,
   metric: 'tokens',
   showMetricToggle: false,
@@ -224,7 +228,7 @@ const doughnutOptions = computed(() => ({
           const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0)
           const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'
           const formattedValue = props.metric === 'actual_cost'
-            ? `$${formatCost(value)}`
+            ? `${currencySymbol.value}${formatCost(value)}`
             : formatTokens(value)
           return `${context.label}: ${formattedValue} (${percentage}%)`
         }
@@ -253,8 +257,10 @@ const toFiniteNumber = (value: unknown): number => {
   return Number.isFinite(numberValue) ? numberValue : 0
 }
 
+const currencySymbol = computed(() => props.displayCurrency === 'CNY' ? '¥' : '$')
+
 const formatCost = (value: number | null | undefined): string => {
-  const safeValue = toFiniteNumber(value)
+  const safeValue = props.displayCurrency === 'CNY' ? usdToCny(toFiniteNumber(value)) : toFiniteNumber(value)
   if (safeValue >= 1000) {
     return (safeValue / 1000).toFixed(2) + 'K'
   } else if (safeValue >= 1) {

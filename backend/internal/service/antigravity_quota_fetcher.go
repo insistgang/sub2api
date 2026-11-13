@@ -175,7 +175,7 @@ func (f *AntigravityQuotaFetcher) buildUsageInfo(modelsResp *antigravity.FetchAv
 	}
 
 	// 同时设置 FiveHour 用于兼容展示（取主要模型）
-	priorityModels := []string{"claude-sonnet-4-20250514", "claude-sonnet-4", "gemini-2.5-pro"}
+	priorityModels := []string{"gemini-4-argon-high", "gemini-4-argon", "gemini-3.8-flash-high", "gemini-3.8-flash", "claude-sonnet-5-5-high", "claude-sonnet-4-20250514", "claude-sonnet-4", "gemini-2.5-pro"}
 	for _, modelName := range priorityModels {
 		if modelInfo, ok := modelsResp.Models[modelName]; ok && modelInfo.QuotaInfo != nil {
 			utilization := (1.0 - modelInfo.QuotaInfo.RemainingFraction) * 100

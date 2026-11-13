@@ -22,6 +22,11 @@ vi.mock('@/stores/app', () => ({
   })
 }))
 
+vi.mock('@/utils/displayCurrency', () => ({
+  usdToCny: (amount: number) => amount * 5,
+  cnyToUsd: (amount: number) => amount / 5,
+}))
+
 vi.mock('vue-i18n', async (importOriginal) => {
   const actual = await importOriginal<typeof import('vue-i18n')>()
   return {
@@ -99,6 +104,8 @@ describe('ProfileInfoCard', () => {
     expect(wrapper.text()).toContain('alice@example.com')
     expect(wrapper.text()).toContain('alice')
     expect(wrapper.text()).toContain('User')
+    expect(wrapper.text()).toContain('¥50.00')
+    expect(wrapper.text()).not.toContain('$10.00')
     expect(wrapper.get('[data-testid="profile-basics-panel"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="profile-auth-bindings-panel"]').exists()).toBe(true)
   })

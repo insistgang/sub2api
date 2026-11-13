@@ -133,6 +133,67 @@
           </nav>
         </div>
 
+        <section
+          v-if="platform === 'openai' && activeClientTab === 'images'"
+          class="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/50"
+        >
+          <div>
+            <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.images.connectionTitle') }}
+            </h3>
+            <dl data-testid="image-connection-info" class="mt-2 space-y-2 text-xs">
+              <div>
+                <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.images.baseUrlLabel') }}</dt>
+                <dd class="mt-0.5 break-all text-gray-800 dark:text-gray-200"><code>{{ apiBaseUrl }}</code></dd>
+              </div>
+              <div>
+                <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.images.generateEndpoint') }}</dt>
+                <dd class="mt-0.5 break-all text-gray-800 dark:text-gray-200"><code>{{ apiBaseUrl }}/images/generations</code></dd>
+              </div>
+              <div>
+                <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.images.editEndpoint') }}</dt>
+                <dd class="mt-0.5 break-all text-gray-800 dark:text-gray-200"><code>{{ apiBaseUrl }}/images/edits</code></dd>
+              </div>
+              <div>
+                <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.images.modelsEndpoint') }}</dt>
+                <dd class="mt-0.5 break-all text-gray-800 dark:text-gray-200"><code>{{ apiBaseUrl }}/models</code></dd>
+              </div>
+            </dl>
+            <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+              {{ t('keys.useKeyModal.images.baseUrlHint') }}
+            </p>
+            <div v-if="showImageServiceDomains" data-testid="image-service-domains" class="mt-2 space-y-1 text-xs leading-5 text-gray-600 dark:text-gray-400">
+              <p>{{ t('keys.useKeyModal.images.mainDomain') }} <code class="break-all">https://us.insistgang.top/v1</code></p>
+              <p>{{ t('keys.useKeyModal.images.compatDomain') }} <code class="break-all">https://api.insistgang.top/v1</code></p>
+              <p>{{ t('keys.useKeyModal.images.domainHint') }}</p>
+            </div>
+          </div>
+          <div>
+            <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.images.beforeStartTitle') }}
+            </h3>
+            <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-400">
+              {{ t('keys.useKeyModal.images.beforeStart') }}
+            </p>
+          </div>
+          <div>
+            <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.images.modelsTitle') }}
+            </h3>
+            <ul class="mt-2 flex flex-wrap gap-2 text-xs text-gray-700 dark:text-gray-300">
+              <li class="rounded-md border border-primary-200 bg-primary-50 px-2 py-1.5 dark:border-primary-800 dark:bg-primary-900/20">
+                <code>gpt-image-2.6-sunburst</code>
+                <span class="ml-2 text-primary-700 dark:text-primary-300">{{ t('keys.useKeyModal.images.defaultModel') }}</span>
+              </li>
+              <li class="rounded-md border border-gray-200 px-2 py-1.5 dark:border-dark-600"><code>gpt-image-2.5-flare</code></li>
+              <li class="rounded-md border border-gray-200 px-2 py-1.5 dark:border-dark-600"><code>gpt-image-2.5-sunburst</code></li>
+            </ul>
+            <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+              {{ t('keys.useKeyModal.images.modelsHint') }}
+            </p>
+          </div>
+        </section>
+
         <!-- Code Blocks (Stacked for multi-file platforms) -->
         <div class="space-y-4">
           <div
@@ -170,6 +231,30 @@
               <pre class="p-4 text-sm font-mono text-gray-100 overflow-x-auto"><code v-if="file.highlighted" v-html="file.highlighted"></code><code v-else v-text="file.content"></code></pre>
             </div>
           </div>
+        </div>
+
+        <div v-if="platform === 'openai' && activeClientTab === 'images'" class="space-y-3">
+          <details class="rounded-lg border border-gray-200 dark:border-dark-700">
+            <summary class="cursor-pointer px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.images.clientTitle') }}
+            </summary>
+            <div class="space-y-2 px-4 pb-4 text-sm leading-6 text-gray-600 dark:text-gray-400">
+              <p>{{ t('keys.useKeyModal.images.clientHint') }}</p>
+              <p>{{ t('keys.useKeyModal.images.gifHint') }}</p>
+            </div>
+          </details>
+          <details class="rounded-lg border border-gray-200 dark:border-dark-700">
+            <summary class="cursor-pointer px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.images.troubleshootingTitle') }}
+            </summary>
+            <ul class="space-y-2 px-4 pb-4 text-sm leading-6 text-gray-600 dark:text-gray-400">
+              <li>{{ t('keys.useKeyModal.images.permissionError') }}</li>
+              <li>{{ t('keys.useKeyModal.images.modelError') }}</li>
+              <li>{{ t('keys.useKeyModal.images.requestError') }}</li>
+              <li>{{ t('keys.useKeyModal.images.rateLimitError') }}</li>
+              <li>{{ t('keys.useKeyModal.images.connectionError') }}</li>
+            </ul>
+          </details>
         </div>
 
         <section
@@ -317,6 +402,14 @@ const { copyToClipboard: clipboardCopy } = useClipboard()
 const copiedIndex = ref<number | null>(null)
 const activeTab = ref<string>('unix')
 const activeClientTab = ref<string>('claude')
+const normalizedBaseRoot = computed(() =>
+  (props.baseUrl || window.location.origin).trim().replace(/\/+$/, '').replace(/\/(?:v1|v1beta)$/i, '')
+)
+const apiBaseUrl = computed(() => `${normalizedBaseRoot.value}/v1`)
+const showImageServiceDomains = computed(() => [
+  'https://us.insistgang.top/v1',
+  'https://api.insistgang.top/v1'
+].includes(apiBaseUrl.value))
 type CodexAuthMode = 'legacy' | 'api-key'
 const codexAuthMode = ref<CodexAuthMode>('legacy')
 type CodexModelManifestState = 'idle' | 'loading' | 'ready' | 'error'
@@ -471,6 +564,7 @@ const clientTabs = computed((): TabConfig[] => {
       const tabs: TabConfig[] = [
         { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
         { id: 'codex-ws', label: t('keys.useKeyModal.cliTabs.codexCliWs'), icon: TerminalIcon },
+        { id: 'images', label: t('keys.useKeyModal.cliTabs.images'), icon: SparkleIcon },
       ]
       if (props.allowMessagesDispatch) {
         tabs.push({ id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon })
@@ -541,7 +635,7 @@ const showCodexAuthMode = computed(() =>
 
 const currentTabs = computed(() => {
   if (!showShellTabs.value) return []
-  if (activeClientTab.value === 'codex' || activeClientTab.value === 'codex-ws' || activeClientTab.value === 'grok') {
+  if (activeClientTab.value === 'codex' || activeClientTab.value === 'codex-ws' || activeClientTab.value === 'grok' || activeClientTab.value === 'images') {
     return openaiTabs
   }
   return shellTabs
@@ -558,6 +652,9 @@ const platformDescription = computed(() => {
   }
   switch (props.platform) {
     case 'openai':
+      if (activeClientTab.value === 'images') {
+        return t('keys.useKeyModal.images.description')
+      }
       if (activeClientTab.value === 'claude') {
         return t('keys.useKeyModal.description')
       }
@@ -604,6 +701,9 @@ const platformNote = computed(() => {
   }
   switch (props.platform) {
     case 'openai':
+      if (activeClientTab.value === 'images') {
+        return t('keys.useKeyModal.images.note')
+      }
       if (activeClientTab.value === 'claude') {
         return t('keys.useKeyModal.note')
       }
@@ -736,14 +836,13 @@ const comment = (value: string) => wrapToken('text-slate-500', value)
 // Syntax highlighting helpers
 // Generate file configs based on platform and active tab
 const currentFiles = computed((): FileConfig[] => {
-  const baseUrl = props.baseUrl || window.location.origin
   const apiKey = props.apiKey
-  const baseRoot = baseUrl.replace(/\/v1\/?$/, '').replace(/\/+$/, '')
+  const baseRoot = normalizedBaseRoot.value
   const ensureV1 = (value: string) => {
     const trimmed = value.replace(/\/+$/, '')
     return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
   }
-  const apiBase = ensureV1(baseRoot)
+  const apiBase = apiBaseUrl.value
   const antigravityBase = ensureV1(`${baseRoot}/antigravity`)
   const antigravityGeminiBase = (() => {
     const trimmed = `${baseRoot}/antigravity`.replace(/\/+$/, '')
@@ -769,8 +868,14 @@ const currentFiles = computed((): FileConfig[] => {
         ]
       case 'grok':
         return [generateOpenCodeConfig('grok', apiBase, apiKey)]
+      case 'kimi':
+      case 'zhipu':
+      case 'deepseek':
+      case 'minimax':
+      case 'opencode_go':
+        return [generateOpenCodeConfig(props.platform, apiBase, apiKey)]
       default:
-        return [generateOpenCodeConfig('openai', apiBase, apiKey)]
+        return [generateOpenCodeConfig('openai', apiBase, apiKey, undefined, true)]
     }
   }
 
@@ -778,6 +883,9 @@ const currentFiles = computed((): FileConfig[] => {
     case 'typesafe':
       return [generateSystemOneCurl(baseRoot, apiKey)]
     case 'openai':
+      if (activeClientTab.value === 'images') {
+        return generateImageFiles(apiBase)
+      }
       if (activeClientTab.value === 'claude') {
         // Anthropic clients append /v1/messages themselves.
         return generateAnthropicFiles(baseRoot, apiKey)
@@ -791,15 +899,15 @@ const currentFiles = computed((): FileConfig[] => {
       if (activeClientTab.value === 'codex') {
         return generateRoutedCodexFiles(apiBase, apiKey, 'gemini')
       }
-      return [generateGeminiCliContent(baseUrl, apiKey)]
+      return [generateGeminiCliContent(baseRoot, apiKey)]
     case 'antigravity':
       if (activeClientTab.value === 'codex') {
         return generateRoutedCodexFiles(apiBase, apiKey, 'antigravity')
       }
       if (activeClientTab.value === 'gemini') {
-        return [generateGeminiCliContent(`${baseUrl}/antigravity`, apiKey)]
+        return [generateGeminiCliContent(`${baseRoot}/antigravity`, apiKey, 'gemini-4-argon-low')]
       }
-      return generateAnthropicFiles(`${baseUrl}/antigravity`, apiKey)
+      return generateAnthropicFiles(`${baseRoot}/antigravity`, apiKey)
     case 'grok':
       if (activeClientTab.value === 'claude') {
         return generateGrokClaudeFiles(baseRoot, apiKey)
@@ -827,7 +935,7 @@ const currentFiles = computed((): FileConfig[] => {
       if (activeClientTab.value === 'codex' && props.platform) {
         return generateRoutedCodexFiles(apiBase, apiKey, props.platform)
       }
-      return generateAnthropicFiles(baseUrl, apiKey)
+      return generateAnthropicFiles(baseRoot, apiKey)
   }
 })
 
@@ -854,12 +962,13 @@ Invoke-RestMethod -Method Post -Uri "${endpoint}" -Headers $headers -ContentType
     }
   }
   if (activeTab.value === 'cmd') {
+    const cmdPayload = JSON.stringify(JSON.parse(payload)).replace(/"/g, '\\"')
     return {
       path: 'Command Prompt',
       content: `curl -X POST "${endpoint}" ^
   -H "Authorization: Bearer ${apiKey}" ^
   -H "Content-Type: application/json" ^
-  --data "{\"model\":\"jev-latest\",\"state\":\"Text to evaluate\",\"questions\":{\"safety\":{\"type\":\"noul\",\"instructions\":\"Evaluate whether the text is unsafe\"}}}"`
+  --data "${cmdPayload}"`
     }
   }
   return {
@@ -926,12 +1035,12 @@ function generateGrokClaudeFiles(baseUrl: string, apiKey: string): FileConfig[] 
   const environment = {
     ANTHROPIC_BASE_URL: baseUrl,
     ANTHROPIC_AUTH_TOKEN: apiKey,
-    ANTHROPIC_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_OPUS_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_SONNET_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_HAIKU_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_FABLE_MODEL: 'grok-4.5',
-    CLAUDE_CODE_SUBAGENT_MODEL: 'grok-4.5',
+    ANTHROPIC_MODEL: 'grok-4.7',
+    ANTHROPIC_DEFAULT_OPUS_MODEL: 'grok-4.7',
+    ANTHROPIC_DEFAULT_SONNET_MODEL: 'grok-4.7',
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: 'grok-4.7',
+    ANTHROPIC_DEFAULT_FABLE_MODEL: 'grok-4.7',
+    CLAUDE_CODE_SUBAGENT_MODEL: 'grok-4.7',
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
   }
   let path: string
@@ -978,8 +1087,7 @@ function generateGrokClaudeFiles(baseUrl: string, apiKey: string): FileConfig[] 
   ]
 }
 
-function generateGeminiCliContent(baseUrl: string, apiKey: string): FileConfig {
-  const model = 'gemini-2.0-flash'
+function generateGeminiCliContent(baseUrl: string, apiKey: string, model = 'gemini-2.5-flash'): FileConfig {
   const modelComment = t('keys.useKeyModal.gemini.modelComment')
   let path: string
   let content: string
@@ -989,18 +1097,22 @@ function generateGeminiCliContent(baseUrl: string, apiKey: string): FileConfig {
     case 'unix':
       path = 'Terminal'
       content = `export GOOGLE_GEMINI_BASE_URL="${baseUrl}"
+export GOOGLE_GENAI_API_VERSION="v1beta"
 export GEMINI_API_KEY="${apiKey}"
 export GEMINI_MODEL="${model}"  # ${modelComment}`
       highlighted = `${keyword('export')} ${variable('GOOGLE_GEMINI_BASE_URL')}${operator('=')}${string(`"${baseUrl}"`)}
+${keyword('export')} ${variable('GOOGLE_GENAI_API_VERSION')}${operator('=')}${string('"v1beta"')}
 ${keyword('export')} ${variable('GEMINI_API_KEY')}${operator('=')}${string(`"${apiKey}"`)}
 ${keyword('export')} ${variable('GEMINI_MODEL')}${operator('=')}${string(`"${model}"`)}  ${comment(`# ${modelComment}`)}`
       break
     case 'cmd':
       path = 'Command Prompt'
       content = `set GOOGLE_GEMINI_BASE_URL=${baseUrl}
+set GOOGLE_GENAI_API_VERSION=v1beta
 set GEMINI_API_KEY=${apiKey}
 set GEMINI_MODEL=${model}`
       highlighted = `${keyword('set')} ${variable('GOOGLE_GEMINI_BASE_URL')}${operator('=')}${string(baseUrl)}
+${keyword('set')} ${variable('GOOGLE_GENAI_API_VERSION')}${operator('=')}${string('v1beta')}
 ${keyword('set')} ${variable('GEMINI_API_KEY')}${operator('=')}${string(apiKey)}
 ${keyword('set')} ${variable('GEMINI_MODEL')}${operator('=')}${string(model)}
 ${comment(`REM ${modelComment}`)}`
@@ -1008,9 +1120,11 @@ ${comment(`REM ${modelComment}`)}`
     case 'powershell':
       path = 'PowerShell'
       content = `$env:GOOGLE_GEMINI_BASE_URL="${baseUrl}"
+$env:GOOGLE_GENAI_API_VERSION="v1beta"
 $env:GEMINI_API_KEY="${apiKey}"
 $env:GEMINI_MODEL="${model}"  # ${modelComment}`
       highlighted = `${keyword('$env:')}${variable('GOOGLE_GEMINI_BASE_URL')}${operator('=')}${string(`"${baseUrl}"`)}
+${keyword('$env:')}${variable('GOOGLE_GENAI_API_VERSION')}${operator('=')}${string('"v1beta"')}
 ${keyword('$env:')}${variable('GEMINI_API_KEY')}${operator('=')}${string(`"${apiKey}"`)}
 ${keyword('$env:')}${variable('GEMINI_MODEL')}${operator('=')}${string(`"${model}"`)}  ${comment(`# ${modelComment}`)}`
       break
@@ -1023,11 +1137,46 @@ ${keyword('$env:')}${variable('GEMINI_MODEL')}${operator('=')}${string(`"${model
   return { path, content, highlighted }
 }
 
+const DEFAULT_OPENAI_MODEL = 'gpt-6.1-terra'
+
+function generateImageFiles(baseUrl: string): FileConfig[] {
+  const windows = activeTab.value === 'windows'
+  const keyPlaceholder = t('keys.useKeyModal.images.keyPlaceholder')
+  const setup = windows
+    ? `$env:SUB2API_API_KEY='${keyPlaceholder}'`
+    : `export SUB2API_API_KEY='${keyPlaceholder}'`
+  const generate = windows
+    ? `$body = @{ model = 'gpt-image-2.6-sunburst'; prompt = 'A lighthouse by the sea, watercolor'; size = '1024x1024'; quality = 'auto'; n = 1; response_format = 'b64_json' } | ConvertTo-Json -Compress
+Invoke-RestMethod -Method Post -Uri '${baseUrl}/images/generations' -Headers @{ Authorization = "Bearer $env:SUB2API_API_KEY" } -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($body)) -TimeoutSec 900 | ConvertTo-Json -Depth 20 | Set-Content -Encoding UTF8 generation.json`
+    : `curl --fail-with-body --max-time 900 '${baseUrl}/images/generations' \\
+  -H "Authorization: Bearer $SUB2API_API_KEY" \\
+  -H 'Content-Type: application/json' \\
+  -d '{"model":"gpt-image-2.6-sunburst","prompt":"A lighthouse by the sea, watercolor","size":"1024x1024","quality":"auto","n":1,"response_format":"b64_json"}' > generation.json`
+  const edit = windows
+    ? `curl.exe --fail-with-body --max-time 900 '${baseUrl}/images/edits' -H "Authorization: Bearer $env:SUB2API_API_KEY" -F 'model=gpt-image-2.6-sunburst' -F 'prompt=Keep the subject; change the background to snowy mountains' -F 'image=@reference.png;type=image/png' -F 'size=1024x1024' -F 'response_format=b64_json' -o edit.json`
+    : `curl --fail-with-body --max-time 900 '${baseUrl}/images/edits' \\
+  -H "Authorization: Bearer $SUB2API_API_KEY" \\
+  -F 'model=gpt-image-2.6-sunburst' \\
+  -F 'prompt=Keep the subject; change the background to snowy mountains' \\
+  -F 'image=@reference.png;type=image/png' -F 'size=1024x1024' \\
+  -F 'response_format=b64_json' > edit.json`
+  const save = windows
+    ? `$data = Get-Content -Raw generation.json | ConvertFrom-Json
+[IO.File]::WriteAllBytes('generated.png', [Convert]::FromBase64String($data.data[0].b64_json))`
+    : `python3 -c 'import base64,json; from pathlib import Path; data=json.load(open("generation.json", encoding="utf-8-sig")); Path("generated.png").write_bytes(base64.b64decode(data["data"][0]["b64_json"]))'`
+  return [
+    { path: t('keys.useKeyModal.images.setup'), content: setup, hint: t('keys.useKeyModal.images.setupHint', { baseUrl }) },
+    { path: t('keys.useKeyModal.images.generate'), content: generate, hint: t('keys.useKeyModal.images.generateHint') },
+    { path: t('keys.useKeyModal.images.edit'), content: edit, hint: t('keys.useKeyModal.images.editHint') },
+    { path: t('keys.useKeyModal.images.save'), content: save, hint: t('keys.useKeyModal.images.saveHint') }
+  ]
+}
+
 function generateOpenAIFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
 
-  const model = selectCodexCatalogModel('gpt-5.5')
+  const model = selectCodexCatalogModel(DEFAULT_OPENAI_MODEL)
   const reasoningEffortLine = codexReasoningEffortTomlLine(model)
 
   // config.toml content
@@ -1146,10 +1295,10 @@ cli_chat_proxy_base_url = "${baseUrl}"      # CLI chat-proxy base (env: GROK_CLI
 [auth]
 preferred_method = "api_key"
 
-[model."grok-4.5"]
-model = "grok-4.5"                          # id sent to the API
-name = "Grok 4.5"                           # shown in /model picker
-description = "Grok 4.5 via Sub2API (Responses)"
+[model."grok-4.7"]
+model = "grok-4.7"                          # id sent to the API
+name = "Grok 4.7"                           # shown in /model picker
+description = "Grok 4.7 via Sub2API (Responses)"
 # base_url inherits from [endpoints].models_base_url; override only if needed:
 # base_url = "${baseUrl}"
 env_key = "XAI_API_KEY"                     # or: api_key = "${apiKey}"  (not recommended)
@@ -1160,6 +1309,15 @@ context_window = 500000                     # drives auto-compaction timing
 # top_p = 0.95
 # max_completion_tokens = 8192
 # Server-side (backend) web_search tools — only if your gateway exposes them:
+supports_backend_search = true
+
+# Previous generation remains available when the group allows it.
+[model."grok-4.5"]
+model = "grok-4.5"
+name = "Grok 4.5"
+env_key = "XAI_API_KEY"
+api_backend = "responses"
+context_window = 500000
 supports_backend_search = true
 
 [model."grok-build-0.1"]
@@ -1191,7 +1349,7 @@ supports_backend_search = true
 
 # Optional short alias for /model grok:
 # [model."grok"]
-# model = "grok-4.5"
+# model = "grok-4.7"
 # name = "Grok"
 # env_key = "XAI_API_KEY"
 # api_backend = "responses"
@@ -1199,10 +1357,10 @@ supports_backend_search = true
 # supports_backend_search = true
 
 [models]
-# xAI recommends grok-build* for coding/agent sessions; use grok-4.5 for general chat.
-default = "grok-4.5"
-web_search = "grok-4.5"                     # client-side web_search tool model (must exist as [model.*])
-image_description = "grok-4.5"              # vision/describe-image helper model
+# xAI recommends grok-build* for coding/agent sessions; use grok-4.7 for general chat.
+default = "grok-4.7"
+web_search = "grok-4.7"                     # client-side web_search tool model (must exist as [model.*])
+image_description = "grok-4.7"              # vision/describe-image helper model
 # Optional environment-wide sampling defaults (per-model values win):
 # temperature = 0.7
 # top_p = 0.95
@@ -1217,7 +1375,7 @@ auto_compact_threshold_percent = 80         # auto-compact at this % of context_
 [features]
 image_gen = true
 video_gen = true
-image_gen_model_override = "grok-imagine-image-quality"   # or grok-imagine-image
+image_gen_model_override = "grok-imagine-image-2.0"   # or grok-imagine-image
 image_edit_model_override = "grok-imagine-edit"
 # Optional feature flags (defaults shown in docs):
 # telemetry = false
@@ -1240,7 +1398,7 @@ function generateGrokCodexFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const shell = activeTab.value
   const isWindowsPath = shell === 'windows' || shell === 'cmd' || shell === 'powershell'
   const configDir = isWindowsPath ? '%userprofile%\\.codex' : '~/.codex'
-  const model = selectCodexCatalogModel('grok-4.5')
+  const model = selectCodexCatalogModel('grok-4.7')
 
   let envPath: string
   let envContent: string
@@ -1263,7 +1421,7 @@ function generateGrokCodexFiles(baseUrl: string, apiKey: string): FileConfig[] {
 # Docs: Codex config reference (model_providers.*, wire_api = "responses")
 #
 # Text models only. Image/video: grok-imagine-image / grok-imagine-video on media endpoints.
-# Switch model: grok-4.5 | grok-4.3 | grok-build-0.1 | grok-4.20-multi-agent-0309 (text / web_search)
+# Switch model: grok-4.7 | grok-4.5 | grok-4.3 | grok-build-0.1 | grok-4.20-multi-agent-0309 (text / web_search)
 
 model_provider = "sub2api"
 model = "${model}"
@@ -1309,17 +1467,17 @@ function generateRoutedCodexFiles(
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
   const preferredModels: Partial<Record<GroupPlatform, string>> = {
-    openai: 'gpt-5.5',
-    anthropic: 'claude-sonnet-4-6',
+    openai: DEFAULT_OPENAI_MODEL,
+    anthropic: 'claude-sonnet-5-5',
     gemini: 'gemini-2.5-pro',
-    antigravity: 'claude-sonnet-4-6',
-    grok: 'grok-4.5',
-    kimi: 'kimi-k2.5',
+    antigravity: 'claude-sonnet-5-5-high',
+    grok: 'grok-4.7',
+    kimi: 'k3.1-pro',
     zhipu: 'glm-4.7',
-    deepseek: 'deepseek-v4-pro',
-    minimax: 'MiniMax-M3',
+    deepseek: 'deepseek-flash',
+    minimax: 'MiniMax-M3.1-Flash',
     opencode_go: 'glm-5.3',
-    composite: 'gpt-5.5'
+    composite: DEFAULT_OPENAI_MODEL
   }
   const preferredModel = preferredModels[platform] || ''
   const model = selectCodexCatalogModel(preferredModel)
@@ -1375,7 +1533,7 @@ supports_websockets = false${codexModelCatalogMode.value === 'remote' ? '\n\n[fe
 function generateOpenAIWsFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
-  const model = selectCodexCatalogModel('gpt-5.5')
+  const model = selectCodexCatalogModel(DEFAULT_OPENAI_MODEL)
   const reasoningEffortLine = codexReasoningEffortTomlLine(model)
 
   // config.toml content with WebSocket v2
@@ -1400,9 +1558,18 @@ goals = true`
   return buildOpenAICodexFileConfigs(configDir, configContent, apiKey)
 }
 
-function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: string, pathLabel?: string): FileConfig {
+function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: string, pathLabel?: string, modelSelectionRequired = false): FileConfig {
+  const compatibleModelIds: Record<string, string> = {
+    kimi: 'k3.1-pro',
+    zhipu: 'glm-4.7',
+    deepseek: 'deepseek-flash',
+    minimax: 'MiniMax-M3.1-Flash',
+    opencode_go: 'glm-5.3'
+  }
+  const compatibleModel = compatibleModelIds[platform]
+  const providerId = compatibleModel ? `sub2api-${platform}` : platform
   const provider: Record<string, any> = {
-    [platform]: {
+    [providerId]: {
       options: {
         baseURL: baseUrl,
         apiKey
@@ -1410,6 +1577,11 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     }
   }
   const openaiModels = {
+    'gpt-6.1-terra': {
+      name: 'GPT-6.1 Terra',
+      options: { store: false },
+      variants: { low: {}, medium: {}, high: {}, xhigh: {}, max: {} }
+    },
     'gpt-6': {
       name: 'GPT-6 (Astra)',
       limit: {
@@ -1662,17 +1834,6 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     }
   }
   const geminiModels = {
-    'gemini-2.0-flash': {
-      name: 'Gemini 2.0 Flash',
-      limit: {
-        context: 1048576,
-        output: 65536
-      },
-      modalities: {
-        input: ['text', 'image', 'pdf'],
-        output: ['text']
-      }
-    },
     'gemini-2.5-flash': {
       name: 'Gemini 2.5 Flash',
       limit: {
@@ -1687,7 +1848,7 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     'gemini-2.5-pro': {
       name: 'Gemini 2.5 Pro',
       limit: {
-        context: 2097152,
+        context: 1048576,
         output: 65536
       },
       modalities: {
@@ -1723,23 +1884,6 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
         output: ['text']
       }
     },
-    'gemini-3-pro-preview': {
-      name: 'Gemini 3 Pro Preview',
-      limit: {
-        context: 1048576,
-        output: 65536
-      },
-      modalities: {
-        input: ['text', 'image', 'pdf'],
-        output: ['text']
-      },
-      options: {
-        thinking: {
-          budgetTokens: 24576,
-          type: 'enabled'
-        }
-      }
-    },
     'gemini-3.1-pro-preview': {
       name: 'Gemini 3.1 Pro Preview',
       limit: {
@@ -1760,6 +1904,29 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
   }
 
   const antigravityGeminiModels = {
+    'gemini-4-hydrogen-low': {
+      name: 'Gemini 4 Hydrogen (Low)',
+      limit: { context: 1048576, output: 262144 },
+      modalities: { input: ['text', 'image'], output: ['text'] }
+    },
+    'gemini-4-hydrogen-medium': {
+      name: 'Gemini 4 Hydrogen (Medium)',
+      limit: { context: 1048576, output: 262144 },
+      modalities: { input: ['text', 'image'], output: ['text'] }
+    },
+    'gemini-4-hydrogen-high': {
+      name: 'Gemini 4 Hydrogen (High)',
+      limit: { context: 1048576, output: 262144 },
+      modalities: { input: ['text', 'image'], output: ['text'] }
+    },
+    'gemini-4-hydrogen-xhigh': {
+      name: 'Gemini 4 Hydrogen (XHigh)',
+      limit: { context: 1048576, output: 262144 },
+      modalities: { input: ['text', 'image'], output: ['text'] }
+    },
+    'gemini-3.8-flash': { name: 'Gemini 3.8 Flash' },
+    'gemini-4-argon-low': { name: 'Gemini 4 Argon (Low)' },
+    'gemini-4-argon-high': { name: 'Gemini 4 Argon (High)' },
     'gemini-2.5-flash': {
       name: 'Gemini 2.5 Flash',
       limit: {
@@ -1898,6 +2065,8 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     }
   }
   const claudeModels = {
+    'claude-sonnet-5-5-high': { name: 'Claude Sonnet 5.5 (High)' },
+    'claude-opus-5-5-high': { name: 'Claude Opus 5.5 (High)' },
     'claude-fable-5-1': {
       name: 'Claude Fable 5.1',
       limit: {
@@ -1968,6 +2137,7 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
   // Align context_window with Grok Build official sample (docs.x.ai/build/settings) where known.
   // Image/video: grok-imagine-image / grok-imagine-video on media endpoints — not this list.
   const grokModels = {
+    'grok-4.7': { name: 'Grok 4.7' },
     'grok-4.5': {
       name: 'Grok 4.5',
       limit: { context: 500000, output: 64000 }
@@ -2034,10 +2204,14 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
   } else if (platform === 'openai') {
     provider[platform].models = openaiModels
   } else if (platform === 'grok') {
-    // Custom provider pointing at Sub2API OpenAI-compatible Responses/Chat endpoints.
-    provider[platform].npm = '@ai-sdk/openai-compatible'
+    // The OpenAI provider uses Responses by default, matching current Grok models.
+    provider[platform].npm = '@ai-sdk/openai'
     provider[platform].name = 'Grok via Sub2API'
     provider[platform].models = grokModels
+  } else if (compatibleModel) {
+    provider[providerId].npm = '@ai-sdk/openai-compatible'
+    provider[providerId].name = `${platform} via Sub2API`
+    provider[providerId].models = { [compatibleModel]: { name: compatibleModel } }
   }
 
   const agent =
@@ -2059,6 +2233,7 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
   const content = JSON.stringify(
     {
       provider,
+      ...(compatibleModel ? { model: `${providerId}/${compatibleModel}` } : {}),
       ...(agent ? { agent } : {}),
       $schema: 'https://opencode.ai/config.json'
     },
@@ -2069,7 +2244,13 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
   return {
     path: pathLabel ?? 'opencode.json',
     content,
-    hint: t('keys.useKeyModal.opencode.hint')
+    hint: t(modelSelectionRequired
+      ? 'keys.useKeyModal.opencode.routedHint'
+      : compatibleModel
+        ? 'keys.useKeyModal.opencode.compatibleHint'
+        : platform === 'grok'
+          ? 'keys.useKeyModal.opencode.grokHint'
+          : 'keys.useKeyModal.opencode.hint')
   }
 }
 

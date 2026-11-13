@@ -85,6 +85,9 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	if err := s.validateSelectedCreateOrderInstance(ctx, req, sel); err != nil {
 		return nil, err
 	}
+	if sel != nil && sel.ProviderKey == payment.TypeManual && orderAmount <= 0 {
+		return nil, infraerrors.BadRequest("INVALID_AMOUNT", "manual recharge credited balance must be positive after rounding")
+	}
 	selectedCurrency := payment.DefaultPaymentCurrency
 	if sel != nil {
 		selectedCurrency = paymentProviderConfigCurrency(sel.ProviderKey, sel.Config)
@@ -254,7 +257,10 @@ func (s *PaymentService) checkPendingLimit(ctx context.Context, tx *dbent.Tx, us
 	if max <= 0 {
 		max = defaultMaxPendingOrders
 	}
-	c, err := tx.PaymentOrder.Query().Where(paymentorder.UserIDEQ(userID), paymentorder.StatusEQ(OrderStatusPending)).Count(ctx)
+	if err := manualLock(ctx, tx.Client(), fmt.Sprintf("payment-pending-user:%d", userID)); err != nil {
+		return err
+	}
+	c, err := tx.PaymentOrder.Query().Where(paymentorder.UserIDEQ(userID), paymentorder.StatusIn(OrderStatusPending, OrderStatusPendingReview)).Count(ctx)
 	if err != nil {
 		return fmt.Errorf("count pending orders: %w", err)
 	}
@@ -288,6 +294,16 @@ func buildPaymentOrderProviderSnapshot(sel *payment.InstanceSelection, req Creat
 		snapshot["payment_mode"] = paymentMode
 	}
 
+	if providerKey == payment.TypeManual {
+		snapshot["currency"] = "CNY"
+		snapshot["manual_payee_name"] = sel.Config["payeeName"]
+		snapshot["manual_instructions"] = sel.Config["instructions"]
+		qrKey := "alipayQRCode"
+		if req.PaymentType == payment.TypeWxpay {
+			qrKey = "wxpayQRCode"
+		}
+		snapshot["manual_qr_code_img"] = sel.Config[qrKey]
+	}
 	if providerKey == payment.TypeWxpay {
 		if merchantAppID := paymentOrderSnapshotWxpayAppID(sel, req); merchantAppID != "" {
 			snapshot["merchant_app_id"] = merchantAppID
@@ -473,6 +489,7 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 		SetNillablePaymentTradeNo(psNilIfEmpty(pr.TradeNo)).
 		SetNillablePayURL(psNilIfEmpty(pr.PayURL)).
 		SetNillableQrCode(psNilIfEmpty(pr.QRCode)).
+		SetNillableQrCodeImg(psNilIfEmpty(pr.QRCodeImg)).
 		SetNillableProviderInstanceID(psNilIfEmpty(sel.InstanceID)).
 		SetNillableProviderKey(psNilIfEmpty(sel.ProviderKey)).
 		Save(ctx)
@@ -624,6 +641,14 @@ func (s *PaymentService) buildWeChatOAuthRequiredResponse(ctx context.Context, r
 }
 
 func (s *PaymentService) validateSelectedCreateOrderInstance(ctx context.Context, req CreateOrderRequest, sel *payment.InstanceSelection) error {
+	if sel != nil && sel.ProviderKey == payment.TypeManual {
+		if req.OrderType != payment.OrderTypeBalance {
+			return infraerrors.BadRequest("MANUAL_BALANCE_ONLY", "manual payments only support balance recharge")
+		}
+		if err := provider.ValidateManualConfig(sel.Config, req.PaymentType); err != nil {
+			return err
+		}
+	}
 	if !requiresWeChatJSAPICompatibleSelection(req, sel) {
 		return nil
 	}
@@ -743,6 +768,8 @@ func classifyCreatePaymentError(req CreateOrderRequest, providerKey string, err 
 
 func buildCreateOrderResponse(order *dbent.PaymentOrder, req CreateOrderRequest, payAmount float64, sel *payment.InstanceSelection, pr *payment.CreatePaymentResponse, resultType payment.CreatePaymentResultType) *CreateOrderResponse {
 	return &CreateOrderResponse{
+		QRCodeImg:    pr.QRCodeImg,
+		IsManual:     pr.IsManual,
 		OrderID:      order.ID,
 		Amount:       order.Amount,
 		PayAmount:    payAmount,

@@ -18,6 +18,9 @@
       <OrderTable :orders="orders" :loading="loading">
         <template #actions="{ row }">
           <div class="flex items-center gap-2">
+            <button v-if="row.is_manual" data-testid="manual-order-view" @click="router.push(`/payment/manual/${row.id}`)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20">
+              <span>{{ t('payment.manual.view') }}</span>
+            </button>
             <button v-if="row.status === 'PENDING'" @click="handleCancel(row.id)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-yellow-600 hover:bg-yellow-50 dark:text-yellow-400 dark:hover:bg-yellow-900/20">
               <Icon name="x" size="sm" />
               <span>{{ t('payment.orders.cancel') }}</span>
@@ -62,7 +65,7 @@
           </div>
           <div class="mt-2 flex justify-between text-sm">
             <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
-            <span class="text-gray-900 dark:text-white">${{ refundTarget.amount.toFixed(2) }}</span>
+            <span class="text-gray-900 dark:text-white">¥{{ usdToCny(refundTarget.amount).toFixed(2) }}</span>
           </div>
         </div>
         <div>
@@ -83,6 +86,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { usdToCny } from '@/utils/displayCurrency'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores'
 import { paymentAPI } from '@/api/payment'
@@ -112,8 +116,10 @@ const pagination = reactive({ page: 1, page_size: 20, total: 0 })
 const statusFilters = computed(() => [
   { value: '', label: t('common.all') },
   { value: 'PENDING', label: t('payment.status.pending') },
+  { value: 'PENDING_REVIEW', label: t('payment.status.pending_review') },
   { value: 'COMPLETED', label: t('payment.status.completed') },
   { value: 'FAILED', label: t('payment.status.failed') },
+  { value: 'REJECTED', label: t('payment.status.rejected') },
   { value: 'REFUNDED', label: t('payment.status.refunded') },
 ])
 
@@ -173,6 +179,7 @@ async function confirmRefund() {
 }
 
 function canRequestRefund(order: PaymentOrder): boolean {
+  if (order.is_manual) return false
   if (order.status !== 'COMPLETED') return false
   if (!order.provider_instance_id) return false
   return refundEligibleProviders.value.has(order.provider_instance_id)

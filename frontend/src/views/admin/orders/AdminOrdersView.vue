@@ -22,7 +22,7 @@
       <OrderTable :orders="orders" :loading="ordersLoading" show-user>
         <template #actions="{ row }">
           <div class="flex items-center gap-1">
-            <button @click="showOrderDetail(row)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-dark-600">
+            <button data-testid="admin-order-detail" @click="showOrderDetail(row)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-dark-600">
               <Icon name="eye" size="sm" />
               {{ t('common.view') }}
             </button>
@@ -34,22 +34,22 @@
               <Icon name="refresh" size="sm" />
               {{ t('payment.admin.retry') }}
             </button>
-            <template v-if="row.status === 'REFUND_REQUESTED'">
-              <span v-if="row.refund_amount" class="rounded-full bg-purple-100 px-1.5 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">{{ creditedAmountSymbol }}{{ row.refund_amount.toFixed(2) }}</span>
+            <template v-if="!row.is_manual && row.status === 'REFUND_REQUESTED'">
+              <span v-if="row.refund_amount" class="rounded-full bg-purple-100 px-1.5 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">{{ creditedAmountSymbol }}{{ usdToCny(row.refund_amount).toFixed(2) }}</span>
               <button @click="openRefundDialog(row)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-900/20">
                 <Icon name="check" size="sm" />
                 {{ t('payment.admin.approveRefund') }}
               </button>
             </template>
-            <button v-else-if="row.status === 'REFUND_FAILED'" @click="openRefundDialog(row)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-900/20">
+            <button v-else-if="!row.is_manual && row.status === 'REFUND_FAILED'" @click="openRefundDialog(row)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-900/20">
               <Icon name="refresh" size="sm" />
               {{ t('payment.admin.retryRefund') }}
             </button>
-            <button v-else-if="row.status === 'REFUND_PENDING'" :disabled="refundQueryingIds.has(row.id)" @click="handleQueryRefund(row)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-orange-600 hover:bg-orange-50 disabled:opacity-60 dark:text-orange-400 dark:hover:bg-orange-900/20">
+            <button v-else-if="!row.is_manual && row.status === 'REFUND_PENDING'" :disabled="refundQueryingIds.has(row.id)" @click="handleQueryRefund(row)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-orange-600 hover:bg-orange-50 disabled:opacity-60 dark:text-orange-400 dark:hover:bg-orange-900/20">
               <Icon name="refresh" size="sm" :class="refundQueryingIds.has(row.id) ? 'animate-spin' : ''" />
               {{ t('payment.admin.queryRefundStatus') }}
             </button>
-            <button v-else-if="row.status === 'COMPLETED' || row.status === 'PARTIALLY_REFUNDED'" @click="openRefundDialog(row)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">
+            <button v-else-if="!row.is_manual && (row.status === 'COMPLETED' || row.status === 'PARTIALLY_REFUNDED')" @click="openRefundDialog(row)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">
               <Icon name="dollar" size="sm" />
               {{ t('payment.admin.refund') }}
             </button>
@@ -66,14 +66,14 @@
           <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderId') }}</p><p class="font-mono text-sm font-medium text-gray-900 dark:text-white">#{{ selectedOrder.id }}</p></div>
           <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderNo') }}</p><p class="text-sm font-medium text-gray-900 dark:text-white">{{ selectedOrder.out_trade_no }}</p></div>
           <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.status') }}</p><OrderStatusBadge :status="selectedOrder.status" /></div>
-          <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</p><p class="text-sm font-medium text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ selectedOrder.amount.toFixed(2) }}</p></div>
+          <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</p><p class="text-sm font-medium text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ usdToCny(selectedOrder.amount).toFixed(2) }}</p></div>
           <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</p><p class="text-sm font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol(selectedOrder) }}{{ selectedOrder.pay_amount.toFixed(2) }}</p></div>
           <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ t('payment.methods.' + selectedOrder.payment_type, selectedOrder.payment_type) }}</p></div>
           <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.feeRate') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ selectedOrder.fee_rate }}%</p></div>
           <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.createdAt') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ formatDateTime(selectedOrder.created_at) }}</p></div>
           <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.expiresAt') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ formatDateTime(selectedOrder.expires_at) }}</p></div>
           <div v-if="selectedOrder.paid_at"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.paidAt') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ formatDateTime(selectedOrder.paid_at) }}</p></div>
-          <div v-if="selectedOrder.refund_amount"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.refundAmount') }}</p><p class="text-sm font-medium text-red-600 dark:text-red-400">{{ creditedAmountSymbol }}{{ selectedOrder.refund_amount.toFixed(2) }}</p></div>
+          <div v-if="selectedOrder.refund_amount"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.refundAmount') }}</p><p class="text-sm font-medium text-red-600 dark:text-red-400">{{ creditedAmountSymbol }}{{ usdToCny(selectedOrder.refund_amount).toFixed(2) }}</p></div>
           <div v-if="selectedOrder.refund_reason" class="col-span-2"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.refundReason') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ selectedOrder.refund_reason }}</p></div>
           <!-- Refund request info -->
           <div v-if="selectedOrder.refund_requested_at" class="col-span-2 border-t border-gray-200 pt-3 dark:border-dark-600">
@@ -93,6 +93,29 @@
               </div>
             </div>
           </div>
+        </div>
+        <div v-if="selectedOrder.is_manual && manualDetails" class="space-y-4 border-t border-gray-200 pt-4 dark:border-dark-600">
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div><p class="text-xs text-gray-500">{{ t('payment.manual.payee') }}</p><p>{{ manualDetails.payee_name }}</p></div>
+            <div><p class="text-xs text-gray-500">{{ t('payment.manual.payAmount') }}</p><p>¥{{ selectedOrder.pay_amount.toFixed(2) }} CNY</p></div>
+            <div><p class="text-xs text-gray-500">{{ t('payment.manual.creditedAmount') }}</p><p>¥{{ usdToCny(selectedOrder.amount).toFixed(2) }} CNY</p></div>
+            <div><p class="text-xs text-gray-500">{{ t('payment.manual.submittedReference') }}</p><p>{{ manualDetails.submission?.transaction_no || '—' }}</p></div>
+            <div class="sm:col-span-2"><p class="text-xs text-gray-500">{{ t('payment.manual.note') }}</p><p class="whitespace-pre-wrap">{{ manualDetails.submission?.note || '—' }}</p></div>
+            <div v-if="manualDetails.submission?.submitted_at"><p class="text-xs text-gray-500">{{ t('payment.manual.submittedAt') }}</p><p>{{ formatDateTime(manualDetails.submission.submitted_at) }}</p></div>
+            <div class="sm:col-span-2"><img v-if="manualQrImageSrc" :src="manualQrImageSrc" :alt="t('payment.manual.qrAlt')" data-testid="manual-admin-qr-image" class="max-h-56 rounded-lg border border-gray-200 object-contain dark:border-dark-600" /></div>
+          </div>
+          <p v-if="selectedOrder.status === 'PENDING_REVIEW'" class="text-sm text-blue-700 dark:text-blue-300">{{ t('payment.manual.awaitingReview') }}</p>
+          <div v-if="selectedOrder.status === 'PENDING_REVIEW'" class="space-y-3 rounded-lg bg-gray-50 p-3 dark:bg-dark-800">
+            <label class="block"><span class="input-label">{{ t('payment.manual.verifyTransactionNo') }}</span><input v-model="reviewTransactionNo" data-testid="manual-transaction-no" class="input mt-1 w-full" maxlength="128" /></label>
+            <label class="block"><span class="input-label">{{ t('payment.manual.actualReceivedAmount') }} (CNY)</span><input v-model="reviewReceivedAmount" data-testid="manual-received-amount" type="number" min="0" step="0.01" class="input mt-1 w-full" /></label>
+            <label class="block"><span class="input-label">{{ t('payment.manual.reviewNote') }}</span><textarea v-model="reviewNote" rows="2" class="input mt-1 w-full" maxlength="500" /></label>
+            <label class="flex items-center gap-2 text-sm"><input v-model="confirmReceived" data-testid="manual-confirm-received" type="checkbox" class="rounded border-gray-300" /><span>{{ t('payment.manual.confirmReceived') }}</span></label>
+            <div class="flex flex-wrap gap-2">
+              <button data-testid="manual-approve" class="btn btn-primary" :disabled="manualReviewSubmitting || !canApproveManual" @click="approveManual">{{ t('payment.manual.approveAndCredit') }}</button>
+              <div class="flex min-w-64 flex-1 gap-2"><input v-model="rejectReason" data-testid="manual-reject-reason" class="input min-w-0 flex-1" :placeholder="t('payment.manual.rejectReason')" maxlength="500" /><button data-testid="manual-reject" class="btn btn-secondary" :disabled="manualReviewSubmitting || !rejectReason.trim()" @click="rejectManual">{{ t('payment.manual.reject') }}</button></div>
+            </div>
+          </div>
+          <p v-if="manualDetails.review_note" class="text-sm text-gray-600 dark:text-gray-300">{{ manualDetails.review_note }}</p>
         </div>
         <!-- Audit Logs -->
         <div v-if="orderAuditLogs.length > 0" class="border-t border-gray-200 pt-4 dark:border-dark-600">
@@ -118,11 +141,14 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { usdToCny } from '@/utils/displayCurrency'
 import { useAppStore } from '@/stores/app'
 import { adminPaymentAPI } from '@/api/admin/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import { formatOrderDateTime } from '@/components/payment/orderUtils'
 import type { PaymentOrder } from '@/types/payment'
+import type { ManualOrderDetails } from '@/types/payment'
+import { isValidManualQrImageValue } from '@/components/payment/providerConfig'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -157,7 +183,23 @@ const refundRequireForce = ref(false)
 const refundWarning = ref('')
 const refundQueryingIds = ref(new Set<number>())
 const orderAuditLogs = ref<AuditLog[]>([])
-const creditedAmountSymbol = currencySymbol('USD')
+const manualDetails = ref<ManualOrderDetails | null>(null)
+const reviewTransactionNo = ref('')
+const reviewReceivedAmount = ref('')
+const reviewNote = ref('')
+const rejectReason = ref('')
+const confirmReceived = ref(false)
+const manualReviewSubmitting = ref(false)
+const creditedAmountSymbol = currencySymbol('CNY')
+const manualQrImageSrc = computed(() => {
+  const value = manualDetails.value?.qr_code_img || ''
+  return isValidManualQrImageValue(value) ? value : ''
+})
+const canApproveManual = computed(() => {
+  if (!selectedOrder.value || !manualDetails.value || !confirmReceived.value || !reviewTransactionNo.value.trim()) return false
+  const amount = Number(reviewReceivedAmount.value)
+  return Number.isFinite(amount) && amount > 0 && amount === selectedOrder.value.pay_amount
+})
 
 function paymentAmountSymbol(order: PaymentOrder | null | undefined): string {
   return currencySymbol(order?.currency)
@@ -190,6 +232,8 @@ function handleOrderPageSizeChange(size: number) { orderPagination.page_size = s
 const statusFilterOptions = computed(() => [
   { value: '', label: t('payment.admin.allStatuses') },
   { value: 'PENDING', label: t('payment.status.pending') },
+  { value: 'PENDING_REVIEW', label: t('payment.status.pending_review') },
+  { value: 'REJECTED', label: t('payment.status.rejected') },
   { value: 'PAID', label: t('payment.status.paid') },
   { value: 'COMPLETED', label: t('payment.status.completed') },
   { value: 'EXPIRED', label: t('payment.status.expired') },
@@ -217,14 +261,78 @@ const orderTypeFilterOptions = computed(() => [
 
 async function showOrderDetail(order: PaymentOrder) {
   selectedOrder.value = order
+  manualDetails.value = null
+  reviewTransactionNo.value = ''
+  reviewReceivedAmount.value = ''
+  reviewNote.value = ''
+  rejectReason.value = ''
+  confirmReceived.value = false
   orderAuditLogs.value = []
   showDetailDialog.value = true
   try {
+    if (order.is_manual) {
+      const [res, detail] = await Promise.all([
+        adminPaymentAPI.getManualOrder(order.id),
+        adminPaymentAPI.getOrder(order.id),
+      ])
+      if (selectedOrder.value?.id !== order.id) return
+      manualDetails.value = res.data
+      selectedOrder.value = res.data.order
+      reviewReceivedAmount.value = res.data.order.pay_amount.toFixed(2)
+      const data = detail.data as unknown as Record<string, unknown>
+      orderAuditLogs.value = (data.auditLogs || data.audit_logs || []) as AuditLog[]
+      return
+    }
     const res = await adminPaymentAPI.getOrder(order.id)
     const data = res.data as unknown as Record<string, unknown>
     if (data.order) selectedOrder.value = data.order as PaymentOrder
     orderAuditLogs.value = ((data.auditLogs || data.audit_logs || []) as unknown) as AuditLog[]
-  } catch (_err: unknown) { /* keep cached order data */ }
+  } catch (err: unknown) {
+    if (order.is_manual) appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
+  }
+}
+
+async function refreshManualDetails() {
+  if (!selectedOrder.value) return
+  const response = await adminPaymentAPI.getManualOrder(selectedOrder.value.id)
+  manualDetails.value = response.data
+  selectedOrder.value = response.data.order
+  await loadOrders()
+}
+
+async function approveManual() {
+  if (!selectedOrder.value || !canApproveManual.value) return
+  manualReviewSubmitting.value = true
+  try {
+    const response = await adminPaymentAPI.approveManualOrder(selectedOrder.value.id, {
+      transaction_no: reviewTransactionNo.value.trim(),
+      received_amount: Number(reviewReceivedAmount.value),
+      confirm_received: true,
+      note: reviewNote.value.trim(),
+    })
+    manualDetails.value = response.data
+    selectedOrder.value = response.data.order
+    if (response.data.order.status === 'COMPLETED') appStore.showSuccess(t('payment.admin.orderCredited'))
+    else await refreshManualDetails()
+    loadOrders()
+  } catch (err: unknown) {
+    try { await refreshManualDetails() } catch { /* preserve last known review state */ }
+    appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
+  } finally { manualReviewSubmitting.value = false }
+}
+
+async function rejectManual() {
+  if (!selectedOrder.value || !rejectReason.value.trim()) return
+  manualReviewSubmitting.value = true
+  try {
+    const response = await adminPaymentAPI.rejectManualOrder(selectedOrder.value.id, { reason: rejectReason.value.trim() })
+    manualDetails.value = response.data
+    selectedOrder.value = response.data.order
+    loadOrders()
+  } catch (err: unknown) {
+    try { await refreshManualDetails() } catch { /* preserve last known review state */ }
+    appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
+  } finally { manualReviewSubmitting.value = false }
 }
 
 async function handleCancelOrder(order: PaymentOrder) {

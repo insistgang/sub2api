@@ -185,6 +185,9 @@ func (s *PaymentService) validateRefundRequest(ctx context.Context, oid, uid int
 	if err != nil {
 		return nil, infraerrors.NotFound("NOT_FOUND", "order not found")
 	}
+	if IsManualPaymentOrder(o) {
+		return nil, infraerrors.BadRequest("MANUAL_REFUND_UNSUPPORTED", "manual payments do not support automatic refunds")
+	}
 	if o.UserID != uid {
 		return nil, infraerrors.Forbidden("FORBIDDEN", "no permission")
 	}
@@ -209,6 +212,9 @@ func (s *PaymentService) PrepareRefund(ctx context.Context, oid int64, amt float
 	o, err := s.entClient.PaymentOrder.Get(ctx, oid)
 	if err != nil {
 		return nil, nil, infraerrors.NotFound("NOT_FOUND", "order not found")
+	}
+	if IsManualPaymentOrder(o) {
+		return nil, nil, infraerrors.BadRequest("MANUAL_REFUND_UNSUPPORTED", "manual payments do not support automatic refunds")
 	}
 	// REFUND_PENDING 只能通过 QueryAndFinalizeRefund 收敛：重新发起会重复扣减并向网关重复退款。
 	ok := []string{OrderStatusCompleted, OrderStatusRefundRequested, OrderStatusRefundFailed}
@@ -305,6 +311,10 @@ func (s *PaymentService) invalidateRefundBalanceCache(ctx context.Context, userI
 }
 
 func (s *PaymentService) ExecuteRefund(ctx context.Context, p *RefundPlan) (*RefundResult, error) {
+	if p != nil && IsManualPaymentOrder(p.Order) {
+		return nil, infraerrors.BadRequest("MANUAL_REFUND_UNSUPPORTED", "manual payments do not support automatic refunds")
+	}
+
 	c, err := s.entClient.PaymentOrder.Update().Where(paymentorder.IDEQ(p.OrderID), paymentorder.StatusIn(OrderStatusCompleted, OrderStatusRefundRequested, OrderStatusRefundFailed)).SetStatus(OrderStatusRefunding).Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("lock: %w", err)
@@ -432,6 +442,9 @@ func (s *PaymentService) QueryAndFinalizeRefund(ctx context.Context, oid int64) 
 	o, err := s.entClient.PaymentOrder.Get(ctx, oid)
 	if err != nil {
 		return nil, infraerrors.NotFound("NOT_FOUND", "order not found")
+	}
+	if IsManualPaymentOrder(o) {
+		return nil, infraerrors.BadRequest("MANUAL_REFUND_UNSUPPORTED", "manual payments do not support automatic refunds")
 	}
 	if o.Status != OrderStatusRefundPending {
 		return nil, infraerrors.BadRequest("INVALID_STATUS", "only refund pending orders can be finalized")

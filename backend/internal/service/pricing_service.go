@@ -74,6 +74,15 @@ var (
 		Mode:                                "chat",
 		SupportsPromptCaching:               true,
 	}
+	openAIGPT61TerraFallbackPricing = &LiteLLMModelPricing{
+		InputCostPerToken: 1e-6, InputCostPerTokenPriority: 2e-6,
+		OutputCostPerToken: 5e-6, OutputCostPerTokenPriority: 10e-6,
+		CacheCreationInputTokenCost: 1.25e-6, CacheCreationInputTokenCostPriority: 2.5e-6,
+		CacheReadInputTokenCost: 0.05e-6, CacheReadInputTokenCostPriority: 0.1e-6,
+		CacheCreationInputTokenCostExplicit: true,
+		LongContextInputTokenThreshold:      272000, LongContextInputCostMultiplier: 2, LongContextOutputCostMultiplier: 1.5,
+		SupportsServiceTier: true, LiteLLMProvider: "openai", Mode: "chat", SupportsPromptCaching: true,
+	}
 	openAIGPT61SolFallbackPricing = &LiteLLMModelPricing{
 		InputCostPerToken:                   2e-6,
 		InputCostPerTokenPriority:           4e-6,
@@ -1392,9 +1401,14 @@ func isAntigravityThinkingTierAlias(model string) bool {
 
 // normalizeGeminiThinkingTierAlias maps Antigravity's Gemini thinking-tier
 // model IDs to the public base model. The tier controls reasoning behavior, not
-// the published token rate, so this keeps -high/-low/-medium and -tiered
+// the published token rate, so this keeps -high/-low/-medium, Hydrogen -xhigh, and -tiered
 // requests on the corresponding base model's price card.
 func normalizeGeminiThinkingTierAlias(model string) string {
+	for _, tier := range []string{"-low", "-medium", "-high", "-xhigh"} {
+		if model == "gemini-4-hydrogen"+tier {
+			return "gemini-4-hydrogen"
+		}
+	}
 	for _, baseModel := range []string{"gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.8-flash", "gemini-4-argon"} {
 		for _, tier := range []string{"-high", "-low", "-medium", "-tiered"} {
 			if model == baseModel+tier {
@@ -1583,6 +1597,12 @@ func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
 		}
 	}
 
+	if openai.IsGPT61TerraModelSpelling(model) {
+		if pricing, ok := s.pricingData["gpt-6.1-terra"]; ok {
+			return pricing
+		}
+		return openAIGPT61TerraFallbackPricing
+	}
 	if openai.IsGPT61SolModelSpelling(model) {
 		if pricing, ok := s.pricingData["gpt-6.1-sol"]; ok {
 			return pricing
@@ -1665,8 +1685,11 @@ func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
 		return openAIGPT54FallbackPricing
 	}
 
-	// Remote price mirrors can lag new releases. Never bill GPT Image 2.5
+	// Remote price mirrors can lag new releases. Never bill GPT Image 2.5 or 2.6
 	// using the older image model's rates when its entry is absent.
+	if model == "gpt-image-2.6-flare" || model == "gpt-image-2.6-sunburst" {
+		return openAIGPTImage25FallbackPricing
+	}
 	for _, imageModel := range []string{"gpt-image-2.5-flare", "gpt-image-2.5-sunburst"} {
 		if model == imageModel || model == imageModel+"-2026-09-08" {
 			return openAIGPTImage25FallbackPricing

@@ -465,8 +465,13 @@ func ProvideDeferredService(accountRepo AccountRepository, timingWheel *TimingWh
 // ProvideConcurrencyService creates ConcurrencyService and starts slot cleanup worker.
 func ProvideConcurrencyService(cache ConcurrencyCache, accountRepo AccountRepository, cfg *config.Config) *ConcurrencyService {
 	svc := NewConcurrencyService(cache)
-	if err := svc.CleanupStaleProcessSlots(context.Background()); err != nil {
-		logger.LegacyPrintf("service.concurrency", "Warning: startup cleanup stale process slots failed: %v", err)
+	// Reconcile only expired index entries. Prefix-based startup cleanup can
+	// mistake another live app instance's request IDs for stale slots and delete
+	// shared account/user capacity or wait counters.
+	if cache != nil {
+		if err := cache.CleanupExpiredAccountSlotKeys(context.Background()); err != nil {
+			logger.LegacyPrintf("service.concurrency", "Warning: startup cleanup expired account/user slots failed: %v", err)
+		}
 	}
 	if cfg != nil {
 		svc.SetAccountLoadBatchCacheTTL(time.Duration(cfg.Gateway.Scheduling.LoadBatchCacheTTLMS) * time.Millisecond)

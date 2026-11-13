@@ -131,6 +131,57 @@ func antigravityCompatSuccessResponse() *http.Response {
 	}
 }
 
+func TestPrepareAntigravityCompatCall_HydrogenEffortSelectsXHigh(t *testing.T) {
+	account := newAntigravityCompatAccount(AccountTypeOAuth)
+	delete(account.Credentials, "model_mapping")
+	svc := newAntigravityCompatService(config.GatewayConfig{}, nil)
+	body := []byte(`{"model":"gemini-4-hydrogen","messages":[{"role":"user","content":"hello"}],"output_config":{"effort":"xhigh"}}`)
+	c, _ := newAntigravityCompatContext(http.MethodPost, "/v1/chat/completions", body)
+	call, err := svc.prepareAntigravityCompatCall(context.Background(), c, account, antigravityCompatRequest{
+		originalModel: "gemini-4-hydrogen", claudeBody: body,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "gemini-4-hydrogen-xhigh", call.billingModel)
+	require.Equal(t, "gemini-4-hydrogen-xhigh", gjson.GetBytes(call.geminiBody, "model").String())
+}
+
+func TestAntigravityHydrogenXHighAcrossCompatibilityEntrypoints(t *testing.T) {
+	for _, tc := range []struct {
+		name, body string
+		call       func(*AntigravityGatewayService, context.Context, *gin.Context, *Account, []byte) (*ForwardResult, error)
+	}{
+		{"messages", `{"model":"gemini-4-hydrogen","max_tokens":262144,"messages":[{"role":"user","content":"hello"}],"output_config":{"effort":"xhigh"}}`,
+			func(s *AntigravityGatewayService, ctx context.Context, c *gin.Context, a *Account, body []byte) (*ForwardResult, error) {
+				return s.Forward(ctx, c, a, body, false)
+			}},
+		{"chat/completions", `{"model":"gemini-4-hydrogen","messages":[{"role":"user","content":"hello"}],"reasoning_effort":"xhigh"}`,
+			func(s *AntigravityGatewayService, ctx context.Context, c *gin.Context, a *Account, body []byte) (*ForwardResult, error) {
+				return s.ForwardAsChatCompletions(ctx, c, a, body, nil)
+			}},
+		{"responses", `{"model":"gemini-4-hydrogen","input":"hello","reasoning":{"effort":"xhigh"}}`,
+			func(s *AntigravityGatewayService, ctx context.Context, c *gin.Context, a *Account, body []byte) (*ForwardResult, error) {
+				return s.ForwardAsResponses(ctx, c, a, body, nil)
+			}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			account := newAntigravityCompatAccount(AccountTypeOAuth)
+			delete(account.Credentials, "model_mapping")
+			upstream := &queuedHTTPUpstreamStub{responses: []*http.Response{antigravityCompatSuccessResponse()}}
+			svc := newAntigravityCompatService(config.GatewayConfig{MaxLineSize: defaultMaxLineSize}, upstream)
+			body := []byte(tc.body)
+			c, recorder := newAntigravityCompatContext(http.MethodPost, "/v1/"+tc.name, body)
+			_, err := tc.call(svc, context.Background(), c, account, body)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, recorder.Code)
+			require.Len(t, upstream.requestBodies, 1)
+			require.Equal(t, "gemini-4-hydrogen-xhigh", gjson.GetBytes(upstream.requestBodies[0], "model").String())
+			if tc.name == "messages" {
+				require.Equal(t, int64(262144), gjson.GetBytes(upstream.requestBodies[0], "request.generationConfig.maxOutputTokens").Int())
+			}
+		})
+	}
+}
+
 func TestAntigravityCompatOAuthUsesNativeTokenAndRoute(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

@@ -193,6 +193,20 @@ describe('useModelWhitelist', () => {
     })
   })
 
+  it('keeps all four Antigravity Hydrogen efforts and maps the default alias to High', () => {
+    const models = getModelsByPlatform('antigravity')
+    const mappings = getPresetMappingsByPlatform('antigravity')
+    expect(models).not.toContain('gemini-4-hydrogen')
+    expect(mappings).toContainEqual(expect.objectContaining({
+      from: 'gemini-4-hydrogen', to: 'gemini-4-hydrogen-high'
+    }))
+    for (const effort of ['low', 'medium', 'high', 'xhigh']) {
+      const id = `gemini-4-hydrogen-${effort}`
+      expect(models).toContain(id)
+      expect(mappings).toContainEqual(expect.objectContaining({ from: id, to: id }))
+    }
+  })
+
   it('whitelist 模式会保留 GPT-5.4 官方快照的精确映射', () => {
     const mapping = buildModelMappingObject('whitelist', ['gpt-5.4-2026-03-05'], [])
 

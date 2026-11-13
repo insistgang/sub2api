@@ -67,24 +67,28 @@
 
             <template v-if="model.pricing.billing_mode === BILLING_MODE_TOKEN">
               <PricingRow
+                currency="CNY"
                 :label="t(prefixKey('inputPrice'))"
                 :value="model.pricing.input_price"
                 :unit="t(prefixKey('unitPerMillion'))"
                 :scale="perMillionScale"
               />
               <PricingRow
+                currency="CNY"
                 :label="t(prefixKey('outputPrice'))"
                 :value="model.pricing.output_price"
                 :unit="t(prefixKey('unitPerMillion'))"
                 :scale="perMillionScale"
               />
               <PricingRow
+                currency="CNY"
                 :label="t(prefixKey('cacheWrite5mPrice'))"
                 :value="model.pricing.cache_write_price"
                 :unit="t(prefixKey('unitPerMillion'))"
                 :scale="perMillionScale"
               />
               <PricingRow
+                currency="CNY"
                 v-if="model.pricing.cache_write_1h_price != null"
                 :label="t(prefixKey('cacheWrite1hPrice'))"
                 :value="model.pricing.cache_write_1h_price"
@@ -92,12 +96,14 @@
                 :scale="perMillionScale"
               />
               <PricingRow
+                currency="CNY"
                 :label="t(prefixKey('cacheReadPrice'))"
                 :value="model.pricing.cache_read_price"
                 :unit="t(prefixKey('unitPerMillion'))"
                 :scale="perMillionScale"
               />
               <PricingRow
+                currency="CNY"
                 v-if="model.pricing.image_input_price != null && model.pricing.image_input_price > 0"
                 :label="t(prefixKey('imageInputPrice'))"
                 :value="model.pricing.image_input_price"
@@ -105,6 +111,7 @@
                 :scale="perMillionScale"
               />
               <PricingRow
+                currency="CNY"
                 v-if="model.pricing.image_output_price != null && model.pricing.image_output_price > 0"
                 :label="t(prefixKey('imageOutputPrice'))"
                 :value="model.pricing.image_output_price"
@@ -114,6 +121,7 @@
             </template>
 
             <PricingRow
+              currency="CNY"
               v-if="
                 model.pricing.billing_mode === BILLING_MODE_PER_REQUEST &&
                 model.pricing.per_request_price != null
@@ -125,6 +133,7 @@
             />
 
             <PricingRow
+              currency="CNY"
               v-if="
                 model.pricing.billing_mode === BILLING_MODE_IMAGE &&
                 model.pricing.image_output_price != null
@@ -136,6 +145,7 @@
             />
 
             <PricingRow
+              currency="CNY"
               v-if="model.pricing.billing_mode === BILLING_MODE_VIDEO && model.pricing.per_request_price != null"
               :label="t(prefixKey('videoPrice'))"
               :value="model.pricing.per_request_price"
@@ -177,6 +187,7 @@ import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PricingRow from './PricingRow.vue'
 import { formatScaled, resolveIntervalPrices } from '@/utils/pricing'
+import { usdToCny } from '@/utils/displayCurrency'
 import {
   BILLING_MODE_TOKEN,
   BILLING_MODE_PER_REQUEST,
@@ -256,16 +267,21 @@ function formatRange(min: number, max: number | null): string {
   return `(${min}, ${maxLabel}]`
 }
 
+function formatPrice(value: number | null, scale: number): string {
+  const amount = value == null ? null : usdToCny(value)
+  return formatScaled(amount, scale).replace(/^\$/, '¥')
+}
+
 function formatInterval(iv: UserPricingInterval, pricing: UserSupportedModelPricing): string {
   if (pricing.billing_mode === BILLING_MODE_VIDEO) {
-    return `${formatScaled(iv.per_request_price, 1)} ${t(prefixKey('unitPerSecond'))}`
+    return `${formatPrice(iv.per_request_price, 1)} ${t(prefixKey('unitPerSecond'))}`
   }
   if (pricing.billing_mode === BILLING_MODE_PER_REQUEST || pricing.billing_mode === BILLING_MODE_IMAGE) {
-    return formatScaled(iv.per_request_price, 1)
+    return formatPrice(iv.per_request_price, 1)
   }
   const resolved = resolveIntervalPrices(iv, pricing)
-  const input = formatScaled(resolved.input_price, perMillionScale)
-  const output = formatScaled(resolved.output_price, perMillionScale)
+  const input = formatPrice(resolved.input_price, perMillionScale)
+  const output = formatPrice(resolved.output_price, perMillionScale)
   return `${input} / ${output}`
 }
 

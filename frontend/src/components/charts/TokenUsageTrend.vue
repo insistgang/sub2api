@@ -21,6 +21,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { usdToCny } from '@/utils/displayCurrency'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -49,10 +50,11 @@ ChartJS.register(
 
 const { t } = useI18n()
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
+  displayCurrency?: 'USD' | 'CNY'
   trendData: TrendDataPoint[]
   loading?: boolean
-}>()
+}>(), { displayCurrency: 'CNY' })
 
 const isDarkMode = computed(() => {
   return document.documentElement.classList.contains('dark')
@@ -155,7 +157,7 @@ const lineOptions = computed(() => ({
           const dataIndex = tooltipItems[0]?.dataIndex
           if (dataIndex !== undefined && props.trendData[dataIndex]) {
             const data = props.trendData[dataIndex]
-            return `Actual: $${formatCost(data.actual_cost)} | Standard: $${formatCost(data.cost)}`
+            return `Actual: ${currencySymbol.value}${formatCost(data.actual_cost)} | Standard: ${currencySymbol.value}${formatCost(data.cost)}`
           }
           return ''
         }
@@ -215,7 +217,10 @@ const formatTokens = (value: number): string => {
   return value.toLocaleString()
 }
 
+const currencySymbol = computed(() => props.displayCurrency === 'CNY' ? '¥' : '$')
+
 const formatCost = (value: number): string => {
+  value = props.displayCurrency === 'CNY' ? usdToCny(value) : value
   if (value >= 1000) {
     return (value / 1000).toFixed(2) + 'K'
   } else if (value >= 1) {

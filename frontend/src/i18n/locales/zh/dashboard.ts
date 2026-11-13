@@ -177,11 +177,48 @@ export default {
         noteWindows:
           '按 Win+R，输入 %userprofile%\\.codex 打开配置目录。如目录不存在，请先手动创建。'
       },
+      images: {
+        description: '使用 OpenAI 兼容图片接口生成新图或编辑参考图。按下面的步骤配置密钥、发起请求，再将返回结果保存为图片。',
+        connectionTitle: '本站图片接口地址',
+        baseUrlLabel: '客户端 Base URL',
+        generateEndpoint: '文生图 · POST',
+        editEndpoint: '参考图编辑 · POST',
+        modelsEndpoint: '模型列表 · GET（需密钥）',
+        baseUrlHint: '网页登录使用域名首页；客户端 Base URL 填写到 /v1 即可。上面的完整接口用于发起请求，不要把 /images/generations 或 /images/edits 追加到客户端的 Base URL 输入框中。',
+        mainDomain: '推荐主入口：',
+        compatDomain: '兼容入口：',
+        domainHint: '旧配置可继续使用兼容入口。上面的地址和下面的命令均按当前 Base URL 生成；客户端选定一个入口后，全程保持一致。',
+        beforeStartTitle: '先准备，再选择一种操作',
+        beforeStart: '在同一个终端窗口中，先执行步骤 1 设置密钥，再从 2A 文生图和 2B 参考图编辑中选择一种，最后执行步骤 3 保存结果。macOS / Linux 需准备 curl 和 Python 3；Windows 请使用 PowerShell，修图还需 curl.exe。',
+        modelsTitle: '图片模型怎么选',
+        defaultModel: '默认示例',
+        modelsHint: '示例使用 2.6 Sunburst。使用其他模型时，替换请求中的完整 model 值；实际可用范围以当前密钥分组的模型列表和图片权限为准。',
+        setup: '1 · 设置当前终端密钥',
+        keyPlaceholder: '在此粘贴你的 API 密钥',
+        setupHint: '接入地址（Base URL）：{baseUrl}。将下面的占位文字替换为当前密钥；环境变量仅对当前终端窗口生效。',
+        generate: '2A · 文生图 → generation.json',
+        generateHint: '没有参考图时选择此项。将 prompt 改成你的描述，写清主体、风格及横图或竖图等画幅要求。执行一次后等待返回。',
+        edit: '2B · 参考图编辑 → edit.json',
+        editHint: '需要基于原图修改时选择此项。将 reference.png 放在当前目录，prompt 写清修改什么、保留什么。执行此命令会单独提交一次修图请求。',
+        save: '3 · 保存图片 → generated.png',
+        saveHint: '文生图后读取 generation.json；修图后请改为 edit.json，并把输出名改为 edited.png。已有同名图片时先更换输出名。保存只在本地解码，不会再次生图。',
+        clientTitle: '在 WorkBuddy / AI 助手中使用，以及制作 GIF',
+        clientHint: '在支持 OpenAI Images API 的生图连接器或插件中，填写本页 Base URL 和密钥，并明确选择图片模型。WorkBuddy 中还需确认连接器已启用、完成信任并在会话中选中；仅配置聊天模型不会自动加载生图工具。',
+        gifHint: '制作 GIF 可采用“生成一张多格 PNG 分镜 → 本地裁切为多帧 → 合成循环 GIF”的流程。提示词要约定格数、动作顺序和固定镜头；接口返回静态图片，动画合成由本地工具完成，动作流畅度取决于分镜帧数与一致性。',
+        troubleshootingTitle: '没有出图时，按报错检查',
+        permissionError: '401 / 403：核对密钥是否有效，以及分组图片权限、账号权限和余额是否满足要求。',
+        modelError: '模型不存在 / 404：核对完整模型 ID，并确认当前密钥分组的模型列表中包含该模型。',
+        requestError: '400：按返回信息检查参数和参考图；内容审核拒绝表示本次请求内容未通过审核。',
+        rateLimitError: '429 / 503：查看限流、可用账号和服务状态，按返回提示等待，避免连续补发请求。',
+        connectionError: '502、超时或连接中断：先核对用量记录和服务状态；如有请求 ID，请一并保留。请求可能已经执行，确认后再决定是否重新提交。',
+        note: '生成和编辑请求会消耗额度，设置环境变量和本地保存不会新增生图请求。保存示例适用于 data[0].b64_json；若只返回 data[0].url，请从返回地址另行下载。'
+      },
       cliTabs: {
         claudeCode: 'Claude Code',
         geminiCli: 'Gemini CLI',
         codexCli: 'Codex CLI',
         codexCliWs: 'Codex CLI (WebSocket)',
+        images: '图片生成',
         grokCli: 'Grok CLI',
         systemOne: 'System One',
         opencode: 'OpenCode'
@@ -197,13 +234,13 @@ export default {
         claudeNote:
           '这些环境变量将在当前终端会话中生效。如需永久配置，请将其添加到 ~/.bashrc、~/.zshrc 或相应的配置文件中。',
         geminiNote:
-          '这些环境变量将在当前终端会话中生效。如需永久配置，请将其添加到 ~/.bashrc、~/.zshrc 或相应的配置文件中。'
+          '默认 gemini-3.8-flash 需由当前 Antigravity 分组与账号支持。环境变量将在当前终端会话中生效；永久配置请将其添加到终端配置文件。'
       },
       gemini: {
         description:
           '将以下环境变量添加到您的终端配置文件或直接在终端中运行，以配置 Gemini CLI 访问。',
-        modelComment: '如果你有 Gemini 3 权限可以填：gemini-3-pro-preview',
-        note: '这些环境变量将在当前终端会话中生效。如需永久配置，请将其添加到 ~/.bashrc、~/.zshrc 或相应的配置文件中。'
+        modelComment: '模型必须在当前分组和账号支持列表中',
+        note: '默认 gemini-2.5-flash 用于兼容既有账号；2.5 系列可能仅对既有用户开放。若当前分组与账号支持，可改为 gemini-3.5-flash。环境变量在当前终端生效；永久配置请保存到终端配置文件。'
       },
       grok: {
         description:
@@ -215,9 +252,9 @@ export default {
         codexConfigTomlHint:
           'Codex 官方：wire_api 仅支持 "responses"；优先 env_key，勿与 experimental_bearer_token 混用；非 OpenAI 网关默认 supports_websockets = false（Sub2API 仍可接客户端 WS 并桥接到 HTTP/SSE）。合并前备份 ~/.codex/config.toml。',
         note:
-          '导出 GROK_MODELS_BASE_URL 与 XAI_API_KEY，将完整 config.toml（endpoints/auth/models/session/features）保存为 ~/.grok/config.toml，运行 grok inspect，再用 /model 选择 grok-4.5（编程场景可用 grok-build-0.1）。',
+          '导出 GROK_MODELS_BASE_URL 与 XAI_API_KEY，将完整 config.toml（endpoints/auth/models/session/features）保存为 ~/.grok/config.toml，运行 grok inspect，再用 /model 选择 grok-4.7（编程场景可用 grok-build-0.1）。',
         noteWindows:
-          '设置 GROK_MODELS_BASE_URL 与 XAI_API_KEY，将完整 config.toml 保存为 %USERPROFILE%\\.grok\\config.toml，运行 grok inspect，再用 /model 选择 grok-4.5（编程场景可用 grok-build-0.1）。',
+          '设置 GROK_MODELS_BASE_URL 与 XAI_API_KEY，将完整 config.toml 保存为 %USERPROFILE%\\.grok\\config.toml，运行 grok inspect，再用 /model 选择 grok-4.7（编程场景可用 grok-build-0.1）。',
         claudeNote:
           '二选一：终端环境变量仅当前会话；~/.claude/settings.json 可持久化。请勿把含 API Key 的文件提交到仓库。',
         codexNote:
@@ -264,7 +301,10 @@ export default {
       opencode: {
         title: 'OpenCode 配置示例',
         subtitle: 'opencode.json',
-        hint: '配置文件路径：~/.config/opencode/opencode.json（或 opencode.jsonc），不存在需手动创建。可使用默认 provider（openai/anthropic/google）或自定义 provider_id。API Key 支持直接配置或通过客户端 /connect 命令配置。示例仅供参考，模型与选项可按需调整。'
+        hint: '配置文件路径：~/.config/opencode/opencode.json（或 opencode.jsonc），不存在需手动创建。可使用默认 provider（openai/anthropic/google）或自定义 provider_id。API Key 支持直接配置或通过客户端 /connect 命令配置。示例仅供参考，模型与选项可按需调整。',
+        routedHint: '这是 OpenAI 协议的兼容示例，并不代表静态 GPT 列表均已授权。模型与协议必须匹配当前分组目录和路由；混合或插件分组请先查询可用目录，再调整此示例。',
+        compatibleHint: '此示例通过 OpenAI 兼容 Chat Completions 协议使用一个示例模型。调用前确认模型在当前分组与账号的支持列表中；不要直接套用其他平台的模型名。',
+        grokHint: '此 Grok 示例使用 OpenAI SDK 的 Responses 协议。模型仍需由当前 Grok 分组与账号授权；图片和视频使用独立媒体端点。'
       }
     },
     customKeyLabel: '自定义密钥',
@@ -293,22 +333,22 @@ export default {
     },
     // 配额和有效期
     quotaLimit: '额度限制',
-    quotaAmount: '额度金额 (USD)',
-    quotaAmountPlaceholder: '输入 USD 额度限制',
+    quotaAmount: '额度金额（人民币）',
+    quotaAmountPlaceholder: '输入人民币额度限制',
     quotaAmountHint: '设置此密钥可消费的最大金额。0 = 无限制。',
     quotaUsed: '已用额度',
     reset: '重置',
     resetQuotaUsed: '将已用额度重置为 0',
     resetQuotaTitle: '确认重置额度',
-    resetQuotaConfirmMessage: '确定要将密钥 "{name}" 的已用额度（${used}）重置为 0 吗？此操作不可撤销。',
+    resetQuotaConfirmMessage: '确定要将密钥 "{name}" 的已用额度（¥{used}）重置为 0 吗？此操作不可撤销。',
     quotaResetSuccess: '额度重置成功',
     failedToResetQuota: '重置额度失败',
     rateLimitColumn: '速率限制',
     rateLimitSection: '速率限制',
     resetUsage: '重置',
-    rateLimit5h: '5小时限额 (USD)',
-    rateLimit1d: '日限额 (USD)',
-    rateLimit7d: '7天限额 (USD)',
+    rateLimit5h: '5小时限额（人民币）',
+    rateLimit1d: '日限额（人民币）',
+    rateLimit7d: '7天限额（人民币）',
     rateLimitHint: '设置此密钥在指定时间窗口内的最大消费额。0 = 无限制。',
     rateLimitUsage: '速率限制用量',
     resetRateLimitUsage: '重置速率限制用量',
@@ -703,7 +743,7 @@ export default {
       paidPrice: '实付价格(折后)',
       officialPrice: '官方价格',
       rate: '折扣倍率',
-      unitPerMillion: '$ / 1M token',
+      unitPerMillion: '¥ / 1M token',
       perUnitRequest: '/ 次',
       perUnitImage: '/ 张',
       perRequest: '按次计费',

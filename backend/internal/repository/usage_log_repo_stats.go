@@ -548,7 +548,7 @@ func (r *usageLogRepository) GetBatchUserUsageStats(ctx context.Context, userIDs
 // BatchAPIKeyUsageStats represents usage stats for a single API key
 type BatchAPIKeyUsageStats = usagestats.BatchAPIKeyUsageStats
 
-// GetBatchAPIKeyUsageStats gets today and total actual_cost for multiple API keys within a time range.
+// GetBatchAPIKeyUsageStats gets standard and actual costs for multiple API keys within a time range.
 // If startTime is zero, defaults to 30 days ago.
 func (r *usageLogRepository) GetBatchAPIKeyUsageStats(ctx context.Context, apiKeyIDs []int64, startTime, endTime time.Time) (map[int64]*BatchAPIKeyUsageStats, error) {
 	result := make(map[int64]*BatchAPIKeyUsageStats)
@@ -572,8 +572,10 @@ func (r *usageLogRepository) GetBatchAPIKeyUsageStats(ctx context.Context, apiKe
 	query := `
 		SELECT
 			api_key_id,
-			COALESCE(SUM(actual_cost) FILTER (WHERE created_at >= $2 AND created_at < $3), 0) as total_cost,
-			COALESCE(SUM(actual_cost) FILTER (WHERE created_at >= $4), 0) as today_cost
+			COALESCE(SUM(actual_cost) FILTER (WHERE created_at >= $2 AND created_at < $3), 0) as total_actual_cost,
+			COALESCE(SUM(actual_cost) FILTER (WHERE created_at >= $4), 0) as today_actual_cost,
+			COALESCE(SUM(total_cost) FILTER (WHERE created_at >= $2 AND created_at < $3), 0) as total_cost,
+			COALESCE(SUM(total_cost) FILTER (WHERE created_at >= $4), 0) as today_cost
 		FROM usage_logs
 		WHERE api_key_id = ANY($1)
 		  AND created_at >= LEAST($2, $4)
@@ -588,13 +590,17 @@ func (r *usageLogRepository) GetBatchAPIKeyUsageStats(ctx context.Context, apiKe
 		var apiKeyID int64
 		var total float64
 		var todayTotal float64
-		if err := rows.Scan(&apiKeyID, &total, &todayTotal); err != nil {
+		var standardTotal float64
+		var standardToday float64
+		if err := rows.Scan(&apiKeyID, &total, &todayTotal, &standardTotal, &standardToday); err != nil {
 			_ = rows.Close()
 			return nil, err
 		}
 		if stats, ok := result[apiKeyID]; ok {
 			stats.TotalActualCost = total
 			stats.TodayActualCost = todayTotal
+			stats.TotalCost = standardTotal
+			stats.TodayCost = standardToday
 		}
 	}
 	if err := rows.Close(); err != nil {

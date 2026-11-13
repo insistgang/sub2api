@@ -6,11 +6,13 @@
 
 export type OrderStatus =
   | 'PENDING'
+  | 'PENDING_REVIEW'
   | 'PAID'
   | 'RECHARGING'
   | 'COMPLETED'
   | 'EXPIRED'
   | 'CANCELLED'
+  | 'REJECTED'
   | 'FAILED'
   | 'REFUND_REQUESTED'
   | 'REFUNDING'
@@ -19,7 +21,7 @@ export type OrderStatus =
   | 'REFUNDED'
   | 'REFUND_FAILED'
 
-export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' | 'stripe' | 'easypay' | 'airwallex'
+export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' | 'stripe' | 'easypay' | 'airwallex' | 'manual'
 
 export type OrderType = 'balance' | 'subscription'
 
@@ -48,6 +50,7 @@ export interface PaymentConfig {
 }
 
 export interface MethodLimit {
+  is_manual?: boolean
   currency?: string
   display_name?: string
   daily_limit: number
@@ -118,6 +121,17 @@ export interface PaymentOrder {
   refund_request_reason?: string
   plan_id?: number
   provider_instance_id?: string
+  is_manual?: boolean
+}
+
+export interface ManualOrderDetails {
+  order: PaymentOrder
+  qr_code_img: string
+  payee_name: string
+  instructions: string
+  submission: { transaction_no?: string; note?: string; submitted_at?: string }
+  review_note: string
+  reviewed_at: string
 }
 
 // ==================== Plans & Channels ====================
@@ -192,7 +206,7 @@ export interface CreateOrderRequest {
   is_mobile?: boolean
 }
 
-export type CreateOrderResultType = 'order_created' | 'oauth_required' | 'jsapi_ready'
+export type CreateOrderResultType = 'order_created' | 'oauth_required' | 'jsapi_ready' | 'manual_required'
 
 export interface WechatOAuthInfo {
   authorize_url?: string
@@ -235,6 +249,8 @@ export interface CreateOrderResult {
   oauth?: WechatOAuthInfo
   jsapi?: WechatJSAPIPayload
   jsapi_payload?: WechatJSAPIPayload
+  is_manual?: boolean
+  qr_code_img?: string
 }
 
 export type CurrencyAmounts = Record<string, number>

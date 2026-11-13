@@ -40,7 +40,8 @@ describe('UserBalanceHistoryModal request ordering', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('History 20')
     expect(wrapper.text()).not.toContain('History 10')
-    expect(wrapper.text()).toContain('$20.00')
+    expect(wrapper.text()).toContain('¥20.00')
+    expect(wrapper.text()).not.toContain('$20.00')
   })
 
   it('does not end the current filter loading state when an old request finishes', async () => {
@@ -78,5 +79,13 @@ describe('UserBalanceHistoryModal request ordering', () => {
     await flushPromises()
     expect(console.error).toHaveBeenCalledWith('Failed to load balance history:', error)
     expect(wrapper.find('svg.animate-spin').exists()).toBe(false)
+  })
+
+  it('shows the stored balance and recharge history as CNY', async () => {
+    mocks.getUserBalanceHistory.mockResolvedValueOnce({ ...result(20), items: [], total: 0 })
+    const wrapper = await openDialog()
+    await flushPromises()
+    expect(wrapper.text()).toContain('¥1.00')
+    expect(wrapper.text()).toContain('¥20.00')
   })
 })

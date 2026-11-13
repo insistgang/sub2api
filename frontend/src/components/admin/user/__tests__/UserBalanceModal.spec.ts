@@ -24,4 +24,16 @@ describe('balance operation error feedback', () => {
     expect(w.emitted('success')).toBeUndefined(); expect(w.emitted('close')).toBeUndefined()
     expect(w.get('button[type="submit"]').attributes('disabled')).toBeUndefined()
   })
+
+  it('shows RMB labels and preserves the API amount for a 1:1 deposit', async () => {
+    mocks.updateBalance.mockResolvedValueOnce({})
+    const w = mount(UserBalanceModal, { props: { show: true, operation: 'add', user: { id: 1, email: 'a@example.com', balance: 5 } as AdminUser },
+      global: { stubs: { BaseDialog: { template: '<div><slot /><slot name="footer" /></div>' } } } })
+    await w.get('input[type="number"]').setValue('2')
+    expect(w.text()).toContain('¥5.00')
+    expect(w.text()).toContain('¥7.00')
+    await w.get('form').trigger('submit')
+    await flushPromises()
+    expect(mocks.updateBalance).toHaveBeenCalledWith(1, 2, 'add', '')
+  })
 })

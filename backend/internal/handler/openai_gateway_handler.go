@@ -884,6 +884,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			} else {
 				var failoverErr *service.UpstreamFailoverError
 				if errors.As(err, &failoverErr) {
+					failoverErr.SetUpstreamPlatformIfEmpty(account.Platform)
 					if failoverClientGone(c) {
 						reqLog.Info("openai.failover_aborted_client_disconnected",
 							zap.Int64("account_id", account.ID),
@@ -1461,6 +1462,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 			} else {
 				var failoverErr *service.UpstreamFailoverError
 				if errors.As(err, &failoverErr) {
+					failoverErr.SetUpstreamPlatformIfEmpty(account.Platform)
 					if failoverClientGone(c) {
 						reqLog.Info("openai_messages.failover_aborted_client_disconnected",
 							zap.Int64("account_id", account.ID),
@@ -2634,7 +2636,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	// 必须尽早注册，确保任何 early return 都能释放已获取的并发槽位。
 	defer releaseTurnSlots()
 
-	userReleaseFunc, userAcquired, err := h.concurrencyHelper.TryAcquireUserSlotForAPIKey(ctx, subject.UserID, subject.Concurrency, apiKey.ID)
+	userReleaseFunc, userAcquired, err := h.concurrencyHelper.TryAcquireUserSlotForAPIKey(ctx, subject.UserID, subject.Concurrency, apiKey)
 	if err != nil {
 		reqLog.Warn("openai.websocket_user_slot_acquire_failed", zap.Error(err))
 		closeOpenAIClientWS(wsConn, coderws.StatusInternalError, "failed to acquire user concurrency slot")
@@ -2649,7 +2651,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		if currentUserRelease != nil {
 			return true
 		}
-		userReleaseFunc, userAcquired, err := h.concurrencyHelper.TryAcquireUserSlotForAPIKey(ctx, subject.UserID, subject.Concurrency, apiKey.ID)
+		userReleaseFunc, userAcquired, err := h.concurrencyHelper.TryAcquireUserSlotForAPIKey(ctx, subject.UserID, subject.Concurrency, apiKey)
 		if err != nil {
 			reqLog.Warn("openai.websocket_user_slot_reacquire_failed", zap.Error(err))
 			closeOpenAIClientWS(wsConn, coderws.StatusInternalError, "failed to acquire user concurrency slot")
@@ -2738,6 +2740,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		}
 	}
 	handleWSFailover := func(account *service.Account, failoverErr *service.UpstreamFailoverError) bool {
+		failoverErr.SetUpstreamPlatformIfEmpty(account.Platform)
 		if ctx.Err() != nil {
 			return false
 		}
@@ -3063,7 +3066,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				// 防御式清理：避免异常路径下旧槽位覆盖导致泄漏。
 				releaseTurnSlots()
 				// 非首轮 turn 需要重新抢占并发槽位，避免长连接空闲占槽。
-				userReleaseFunc, userAcquired, err := h.concurrencyHelper.TryAcquireUserSlotForAPIKey(ctx, subject.UserID, subject.Concurrency, apiKey.ID)
+				userReleaseFunc, userAcquired, err := h.concurrencyHelper.TryAcquireUserSlotForAPIKey(ctx, subject.UserID, subject.Concurrency, apiKey)
 				if err != nil {
 					return service.NewOpenAIWSClientCloseError(coderws.StatusInternalError, "failed to acquire user concurrency slot", err)
 				}
@@ -3228,6 +3231,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			}
 			var failoverErr *service.UpstreamFailoverError
 			if errors.As(err, &failoverErr) {
+				failoverErr.SetUpstreamPlatformIfEmpty(account.Platform)
 				retryPayload, retryCurrentTurn := service.OpenAIWSCurrentTurnRetryPayload(err)
 				nextAttemptMessage, retrySafe := openAIWSNextAttemptMessage(wsAttemptMessage, retryPayload, retryCurrentTurn)
 				if !retrySafe {
@@ -3598,7 +3602,11 @@ func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverE
 
 	// 先检查透传规则
 	if h.errorPassthroughService != nil && len(responseBody) > 0 {
-		if rule := h.errorPassthroughService.MatchRule("openai", statusCode, responseBody); rule != nil {
+		platform := strings.TrimSpace(failoverErr.UpstreamPlatform)
+		if platform == "" {
+			platform = service.PlatformOpenAI
+		}
+		if rule := h.errorPassthroughService.MatchRule(platform, statusCode, responseBody); rule != nil {
 			// 确定响应状态码
 			respCode := statusCode
 			if !rule.PassthroughCode && rule.ResponseCode != nil {

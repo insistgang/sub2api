@@ -692,6 +692,7 @@ type GatewayFailureReason string
 // source-compatible and preserves their legacy retry-next-account behavior.
 type UpstreamFailoverError struct {
 	StatusCode               int
+	UpstreamPlatform         string        // Failed account's provider for error rules; empty preserves legacy protocol matching.
 	ResponseBody             []byte        // 上游响应体，用于错误透传规则匹配
 	ResponseHeaders          http.Header   // 上游响应头，用于透传 cf-ray/cf-mitigated/content-type 等诊断信息
 	ForceCacheBilling        bool          // Antigravity 粘性会话切换时设为 true
@@ -708,6 +709,14 @@ type UpstreamFailoverError struct {
 	NextAccountAction        NextAccountAction
 	ClientStatusCode         int
 	ClientMessage            string
+}
+
+// SetUpstreamPlatformIfEmpty records the failed account at an account-aware
+// boundary without replacing origin metadata already carried through a retry.
+func (e *UpstreamFailoverError) SetUpstreamPlatformIfEmpty(platform string) {
+	if e != nil && strings.TrimSpace(e.UpstreamPlatform) == "" {
+		e.UpstreamPlatform = strings.TrimSpace(platform)
+	}
 }
 
 func (e *UpstreamFailoverError) Error() string {

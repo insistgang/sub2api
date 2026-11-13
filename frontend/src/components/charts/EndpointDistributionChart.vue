@@ -107,15 +107,16 @@
                   {{ formatTokens(item.total_tokens) }}
                 </td>
                 <td class="py-1.5 text-right text-green-600 dark:text-green-400">
-                  ${{ formatCost(item.actual_cost) }}
+                  {{ currencySymbol }}{{ formatCost(item.actual_cost) }}
                 </td>
                 <td class="py-1.5 text-right text-gray-400 dark:text-gray-500">
-                  ${{ formatCost(item.cost) }}
+                  {{ currencySymbol }}{{ formatCost(item.cost) }}
                 </td>
               </tr>
               <tr v-if="expandedKey === item.endpoint">
                 <td colspan="5" class="p-0">
                   <UserBreakdownSubTable
+                    :display-currency="displayCurrency"
                     :items="breakdownItems"
                     :loading="breakdownLoading"
                   />
@@ -135,6 +136,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { usdToCny } from '@/utils/displayCurrency'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
 import { Doughnut } from 'vue-chartjs'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -154,7 +156,8 @@ const props = withDefaults(
     endpointStats: EndpointStat[]
     upstreamEndpointStats?: EndpointStat[]
     endpointPathStats?: EndpointStat[]
-    loading?: boolean
+    displayCurrency?: 'USD' | 'CNY'
+  loading?: boolean
     title?: string
     metric?: DistributionMetric
     source?: EndpointSource
@@ -168,6 +171,7 @@ const props = withDefaults(
   {
     upstreamEndpointStats: () => [],
     endpointPathStats: () => [],
+    displayCurrency: 'CNY',
     loading: false,
     title: '',
     metric: 'tokens',
@@ -269,7 +273,7 @@ const doughnutOptions = computed(() => ({
           const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0)
           const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'
           const formattedValue = props.metric === 'actual_cost'
-            ? `$${formatCost(value)}`
+            ? `${currencySymbol.value}${formatCost(value)}`
             : formatTokens(value)
           return `${context.label}: ${formattedValue} (${percentage}%)`
         }
@@ -293,7 +297,10 @@ const formatNumber = (value: number): string => {
   return value.toLocaleString()
 }
 
+const currencySymbol = computed(() => props.displayCurrency === 'CNY' ? '¥' : '$')
+
 const formatCost = (value: number): string => {
+  value = props.displayCurrency === 'CNY' ? usdToCny(value) : value
   if (value >= 1000) {
     return (value / 1000).toFixed(2) + 'K'
   } else if (value >= 1) {

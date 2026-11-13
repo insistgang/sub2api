@@ -209,6 +209,20 @@ describe('ModelWhitelistSelector', () => {
     expect(copyToClipboard).not.toHaveBeenCalled()
   })
 
+  it('finds and selects all Hydrogen efforts in the Antigravity dropdown', async () => {
+    const wrapper = mountSelector({ platform: 'antigravity' })
+    await wrapper.get('div.cursor-pointer').trigger('click')
+    const search = wrapper.get('input[placeholder="admin.accounts.searchModels"]')
+    await search.setValue('hydrogen')
+    const options = wrapper.findAll('[data-testid="select-model"]').map(button => button.text().trim())
+    expect(options.sort()).toEqual(['low', 'medium', 'high', 'xhigh'].map(effort => `gemini-4-hydrogen-${effort}`).sort())
+    await findModelRow(wrapper, 'gemini-4-hydrogen-xhigh').get('[data-testid="select-model"]').trigger('click')
+    expect(wrapper.emitted('update:modelValue')).toEqual([[['gemini-4-hydrogen-xhigh']]])
+
+    await search.setValue('gemini-2.5-flash')
+    expect(wrapper.findAll('[data-testid="select-model"]').filter(button => button.text().trim() === 'gemini-2.5-flash')).toHaveLength(1)
+  })
+
   it('warns when model IDs sync but capability metadata is incomplete', async () => {
     syncUpstreamModels.mockResolvedValue({
       models: ['x-preview-f-free'],
