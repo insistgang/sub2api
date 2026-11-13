@@ -300,6 +300,28 @@ func TestBuildTools_KeepsWebSearchWhenNoClientFunctions(t *testing.T) {
 	require.Equal(t, 5, result[0].GoogleSearch.EnhancedContent.ImageSearch.MaxResultCount)
 }
 
+func TestBuildGenerationConfig_HydrogenOutputLimitPreservesOtherCaps(t *testing.T) {
+	for _, tc := range []struct {
+		model string
+		want  int
+	}{
+		{"gemini-4-hydrogen", 262144},
+		{"gemini-4-hydrogen-low", 262144},
+		{"gemini-4-hydrogen-medium", 262144},
+		{"gemini-4-hydrogen-high", 262144},
+		{"gemini-4-hydrogen-xhigh", 262144},
+		{"gemini-4-argon-high", 65000},
+		{"gemini-3.8-flash-high", 65000},
+		{"gemini-4-hydrogen-other", 65000},
+		{"claude-sonnet-4-6", 64000},
+	} {
+		t.Run(tc.model, func(t *testing.T) {
+			config := buildGenerationConfig(&ClaudeRequest{Model: tc.model, MaxTokens: 300000})
+			require.Equal(t, tc.want, config.MaxOutputTokens)
+		})
+	}
+}
+
 func TestBuildGenerationConfig_ThinkingDynamicBudget(t *testing.T) {
 	tests := []struct {
 		name        string

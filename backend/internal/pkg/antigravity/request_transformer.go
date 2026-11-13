@@ -672,6 +672,9 @@ const (
 )
 
 func maxOutputTokensLimit(model string) int {
+	if isGemini4HydrogenModel(model) {
+		return 262144
+	}
 	if strings.HasPrefix(model, "claude-") {
 		return maxOutputTokensClaude
 	}

@@ -3,6 +3,7 @@ package antigravity
 import (
 	"encoding/json"
 	"testing"
+	"time"
 )
 
 func TestDefaultModels_ContainsNewAndLegacyImageModels(t *testing.T) {
@@ -54,6 +55,39 @@ func TestDefaultModels_ContainsNewAndLegacyImageModels(t *testing.T) {
 		if _, ok := byID[id]; !ok {
 			t.Fatalf("expected model %q to be exposed in DefaultModels", id)
 		}
+	}
+}
+
+func TestDefaultModels_ExposesHydrogenReasoningVariants(t *testing.T) {
+	claudeIDs := make(map[string]bool)
+	createdAt := make(map[string]string)
+	for _, model := range DefaultModels() {
+		claudeIDs[model.ID] = true
+		createdAt[model.ID] = model.CreatedAt
+	}
+	geminiIDs := make(map[string]bool)
+	for _, model := range DefaultGeminiModels() {
+		geminiIDs[model.Name] = true
+	}
+	for _, id := range []string{
+		"gemini-4-hydrogen-low", "gemini-4-hydrogen-medium",
+		"gemini-4-hydrogen-high", "gemini-4-hydrogen-xhigh",
+	} {
+		if !claudeIDs[id] || !geminiIDs["models/"+id] {
+			t.Errorf("Hydrogen variant %q missing from a public catalog", id)
+		}
+		if !IsGeminiReasoningModel(id) {
+			t.Errorf("Hydrogen variant %q must omit unsupported sampling/stop parameters", id)
+		}
+		if _, err := time.Parse(time.RFC3339, createdAt[id]); err != nil {
+			t.Errorf("Hydrogen variant %q must provide an SDK-compatible created_at timestamp", id)
+		}
+	}
+	if !IsGeminiReasoningModel("gemini-4-hydrogen") {
+		t.Error("bare Hydrogen alias must be recognized as reasoning")
+	}
+	if claudeIDs["gemini-4-hydrogen"] || geminiIDs["models/gemini-4-hydrogen"] {
+		t.Error("public Antigravity catalogs must expose actual Hydrogen variants, not the bare alias")
 	}
 }
 

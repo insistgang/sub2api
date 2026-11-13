@@ -127,6 +127,20 @@ func TestDefaultAntigravityModelMapping_Gemini4ArgonAndClaude55Models(t *testing
 	}
 }
 
+func TestDefaultAntigravityModelMapping_Gemini4Hydrogen(t *testing.T) {
+	for from, want := range map[string]string{
+		"gemini-4-hydrogen":        "gemini-4-hydrogen-high",
+		"gemini-4-hydrogen-low":    "gemini-4-hydrogen-low",
+		"gemini-4-hydrogen-medium": "gemini-4-hydrogen-medium",
+		"gemini-4-hydrogen-high":   "gemini-4-hydrogen-high",
+		"gemini-4-hydrogen-xhigh":  "gemini-4-hydrogen-xhigh",
+	} {
+		if got := DefaultAntigravityModelMapping[from]; got != want {
+			t.Errorf("%s: want %q, got %q", from, want, got)
+		}
+	}
+}
+
 func TestDefaultBedrockModelMapping_ContainsNewClaudeModels(t *testing.T) {
 	t.Parallel()
 

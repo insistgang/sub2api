@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
+	"github.com/tidwall/gjson"
 )
 
 // Gemini 原生请求（/v1beta/models/{model}:generateContent 等）经 Antigravity 账号转发时，
@@ -15,13 +16,13 @@ import (
 //
 // 这里在账号 model_mapping 没有为裸名配置显式条目、但配置了它的后缀变体时，
 // 按 thinkingConfig 自动挑一个变体：
-//   - thinkingLevel: "low" / "medium" / "high" → 同名后缀
+//   - thinkingLevel: "low" / "medium" / "high" → 同名后缀；Hydrogen 另支持精确的 "xhigh" 变体
 //   - thinkingBudget: -1（动态）→ high；0 → low；1..1024 → low；1025..8192 → medium；>8192 → high
 //   - 未携带 thinkingConfig → high（与 Gemini 3 系列默认开启动态思考一致）
 // 选中的后缀在映射表里不存在时按 high → medium → low → tiered 的顺序降级到存在的变体。
-// 显式映射（裸名本身在 model_mapping 里）始终优先，行为与现在完全一致。
+// 管理员显式映射（裸名本身在 model_mapping 里）始终优先。
 
-var geminiThinkingVariantSuffixes = []string{"-low", "-medium", "-high", "-tiered"}
+var geminiThinkingVariantSuffixes = []string{"-low", "-medium", "-high", "-xhigh", "-tiered"}
 
 const (
 	geminiThinkingBudgetLowMax    = 1024
@@ -47,7 +48,7 @@ func hasGeminiThinkingVariantSuffix(model string) bool {
 	return false
 }
 
-// geminiThinkingLevelFromBody 从 Gemini 原生请求体推导期望的思考档位（low/medium/high）。
+// geminiThinkingLevelFromBody 从 Gemini 原生请求体推导期望的思考档位（low/medium/high/xhigh）。
 // 解析失败或未携带 thinkingConfig 时返回 "high"。
 func geminiThinkingLevelFromBody(body []byte) string {
 	if len(body) == 0 {
@@ -65,6 +66,8 @@ func geminiThinkingLevelFromBody(body []byte) string {
 		return "medium"
 	case "high":
 		return "high"
+	case "xhigh":
+		return "xhigh"
 	}
 	if tc.ThinkingBudget == nil {
 		return "high"
@@ -108,6 +111,21 @@ func geminiThinkingLevelFromClaudeThinking(thinking *antigravity.ThinkingConfig)
 	}
 }
 
+// Hydrogen exposes a real xhigh variant. Preserve effort across OpenAI's
+// xhigh -> Anthropic max bridge without changing older models' budget routing.
+func geminiThinkingLevelFromClaudeRequest(model string, body []byte, thinking *antigravity.ThinkingConfig) string {
+	if strings.TrimPrefix(strings.TrimSpace(model), "models/") == "gemini-4-hydrogen" &&
+		(thinking == nil || !strings.EqualFold(strings.TrimSpace(thinking.Type), "disabled")) {
+		switch effort := strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "output_config.effort").String())); effort {
+		case "low", "medium", "high", "xhigh":
+			return effort
+		case "max":
+			return "xhigh"
+		}
+	}
+	return geminiThinkingLevelFromClaudeThinking(thinking)
+}
+
 // resolveGeminiThinkingVariant 为裸 Gemini 模型名挑选账号映射表里存在的思考深度变体。
 // 返回 (映射后的上游模型名, 是否命中)。未命中时调用方应回退到常规 getMappedModel 流程。
 func resolveGeminiThinkingVariant(account *Account, requestedModel string, body []byte) (string, bool) {
@@ -138,9 +156,17 @@ func resolveGeminiThinkingVariantForLevel(account *Account, requestedModel strin
 	// 仅查找精确变体键以避免被通配符误匹配。
 	mapped, modelMatched := resolveRequestedModelInMapping(mapping, model)
 	if modelMatched && strings.TrimSpace(mapped) != model {
-		return "", false
+		rawMapping, _ := account.Credentials["model_mapping"].(map[string]any)
+		// The built-in Hydrogen alias defaults to high, but a requested effort
+		// may select another real variant. Stored administrator aliases still win.
+		if model != "gemini-4-hydrogen" || mapped != "gemini-4-hydrogen-high" || len(rawMapping) != 0 {
+			return "", false
+		}
 	}
 
+	if preferred == "xhigh" && model != "gemini-4-hydrogen" {
+		preferred = "high"
+	}
 	if preferred == "" {
 		preferred = "high"
 	}
@@ -156,7 +182,7 @@ func resolveGeminiThinkingVariantForLevel(account *Account, requestedModel strin
 			variantMapped  string
 			variantMatched bool
 		)
-		if modelMatched {
+		if modelMatched || level == "xhigh" {
 			variantMapped, variantMatched = mapping[candidate]
 		} else {
 			variantMapped, variantMatched = resolveRequestedModelInMapping(mapping, candidate)

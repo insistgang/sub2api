@@ -127,4 +127,17 @@ describe('API key client setup configuration', () => {
     await wrapper.findAll('button').find(button => button.text().trim() === 'Windows CMD')!.trigger('click')
     expect(wrapper.find('pre code').text()).toContain('\\"model\\":\\"jev-latest\\"')
   })
+
+  it('exports Hydrogen efforts with the discovered limits and image input in Antigravity OpenCode setup', async () => {
+    const wrapper = openModal('antigravity')
+    await selectClient(wrapper, 'keys.useKeyModal.cliTabs.opencode')
+    const configs = wrapper.findAll('pre code').map(item => JSON.parse(item.text()))
+    const models = configs.find(config => config.provider['antigravity-gemini'])!.provider['antigravity-gemini'].models
+    for (const effort of ['low', 'medium', 'high', 'xhigh']) {
+      expect(models[`gemini-4-hydrogen-${effort}`]).toMatchObject({
+        limit: { context: 1048576, output: 262144 },
+        modalities: { input: ['text', 'image'], output: ['text'] }
+      })
+    }
+  })
 })

@@ -1904,6 +1904,26 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
   }
 
   const antigravityGeminiModels = {
+    'gemini-4-hydrogen-low': {
+      name: 'Gemini 4 Hydrogen (Low)',
+      limit: { context: 1048576, output: 262144 },
+      modalities: { input: ['text', 'image'], output: ['text'] }
+    },
+    'gemini-4-hydrogen-medium': {
+      name: 'Gemini 4 Hydrogen (Medium)',
+      limit: { context: 1048576, output: 262144 },
+      modalities: { input: ['text', 'image'], output: ['text'] }
+    },
+    'gemini-4-hydrogen-high': {
+      name: 'Gemini 4 Hydrogen (High)',
+      limit: { context: 1048576, output: 262144 },
+      modalities: { input: ['text', 'image'], output: ['text'] }
+    },
+    'gemini-4-hydrogen-xhigh': {
+      name: 'Gemini 4 Hydrogen (XHigh)',
+      limit: { context: 1048576, output: 262144 },
+      modalities: { input: ['text', 'image'], output: ['text'] }
+    },
     'gemini-3.8-flash': { name: 'Gemini 3.8 Flash' },
     'gemini-4-argon-low': { name: 'Gemini 4 Argon (Low)' },
     'gemini-4-argon-high': { name: 'Gemini 4 Argon (High)' },
