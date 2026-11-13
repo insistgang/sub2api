@@ -182,6 +182,35 @@ GATEWAY_IMAGE_CONCURRENCY_MAX_WAITING_REQUESTS=10
 
 本地前端开发可设置 `VITE_DEV_PROXY_TARGET=http://127.0.0.1:8080` 指向自己的本地后端；若使用 SSH 隧道，则填隧道监听地址，并先用 `/health` 验证。生产迁移后，隧道仍指向旧服务器时会连接失败，不能据此判断新生产服务宕机。不要让开发页面误连生产后端后执行充值、账号修改等写操作。
 
+### 5.4 修图上传超时与空响应
+
+Nginx 的 `client_body_timeout` 默认是 60 秒，限制的是相邻两次读取上传数据之间的空闲时间，并非整次上传或模型生成的总耗时。参考图尚未传完就长期停传时，Nginx 可记录 408 并直接关闭连接；请求未必进入 Sub2API，调用端也未必能收到 JSON 错误体。`Unexpected end of JSON input` 本身不能证明图片模型或密钥不可用。
+
+本实例的两个域名 `us.insistgang.top`、`api.insistgang.top` 使用以下窄范围配置：
+
+- `/v1/images/edits` 和兼容路径 `/images/edits` 的上传空闲窗口为 180 秒。
+- 文生图、聊天接口、请求体大小限制和上游响应等待时间保持原配置。
+- `deploy/nginx/patch_image_upload.py` 面向已核验的通用根代理加 ACME 位置布局，从原 `location /` 复制代理指令，只生成上述两个精确匹配位置。其它专用位置、不明确的上游和被另外修改过的托管块均拒绝处理。脚本不展开 `include`，管理员须另行审查引入的片段。脚本仅输出候选文件，不安装、不覆盖原文件，也不自行重载 Nginx。
+
+```bash
+python3 deploy/nginx/patch_image_upload.py \
+  --source /path/to/original-site.conf \
+  --output /path/to/new-site.conf
+```
+
+管理员审查候选配置、备份原文件并安装后，先执行 `nginx -t`，再重载 Nginx。上传容错不能修复所有网络中断；验证时应检查暂停超过 60 秒后继续上传是否仍能得到完整响应。
+
+以下手动诊断刻意不带密钥，只发送空 JSON，不调用图片模型。成功标准是暂停上传 65 秒后仍能收到完整的 401 JSON 鉴权错误；它仅验证上传容错和响应完整性，不能替代真实修图验收。
+
+```bash
+python3 deploy/tests/probe_image_upload.py --host us.insistgang.top --gap-seconds 65
+python3 deploy/tests/probe_image_upload.py --host api.insistgang.top --gap-seconds 65
+```
+
+`deploy/nginx/image-transport.conf` 是放在 `http {}` 内的诊断片段。它为上述两个域名的同步图片接口追加 JSON 格式访问日志，保留原访问日志；字段包括接收字节数、声明的正文大小、返回字节数、请求耗时和上游状态，不记录图片、提示词、查询字符串、密钥或客户端 IP。日志路径为 `/var/log/nginx/sub2api-images.log`，部署时应确认它被现有日志轮转规则覆盖。
+
+调用端应先读取 HTTP 状态和响应文本，检查空响应再解析 JSON；网络异常、空内容、非 JSON 错误页均应显示可理解的错误信息。失败后先核对用量和请求记录，避免自动重发生图或修图请求。
+
 ## 6. 异步生图与对象存储
 
 适合长耗时请求经过 CDN 容易超时的情况。推荐在后台 **备份 → 异步图片对象存储** 配置，确认开关、S3 Endpoint、Region、Bucket 和凭证完整。可以复用备份 S3，但应使用独立图片前缀；只有自己确实要公开图片时才设置公共访问地址。
