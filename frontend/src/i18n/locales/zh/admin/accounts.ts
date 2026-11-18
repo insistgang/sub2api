@@ -517,6 +517,7 @@ export default {
         geminiProDaily: 'Pro',
         geminiFlashDaily: 'Flash',
         gemini4Argon: '4 Argon',
+        gemini4Hydrogen: '4 Hydrogen',
         gemini3Pro: 'G3P',
         gemini3Flash: '3.8 Flash',
         gemini3Image: 'G31FI',

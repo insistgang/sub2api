@@ -2,9 +2,17 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 )
 
 type accountUsageCodexProbeRepo struct {
@@ -255,4 +263,109 @@ func TestBuildCodexUsageProgressFromExtra_ZerosExpiredWindow(t *testing.T) {
 			t.Fatalf("expected Utilization=0 for expired 7d window, got %v", progress.Utilization)
 		}
 	})
+}
+
+func TestAccountUsageService_AntigravityForceAndInvalidate(t *testing.T) {
+	oldBaseURLs := append([]string(nil), antigravity.BaseURLs...)
+	oldAvailability := antigravity.DefaultURLAvailability
+	t.Cleanup(func() {
+		antigravity.BaseURLs = oldBaseURLs
+		antigravity.DefaultURLAvailability = oldAvailability
+	})
+
+	var calls atomic.Int32
+	fractions := []float64{0.924, 0.75, 0.50, 0.25}
+	dailyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(r.URL.Path, "loadCodeAssist") {
+			_, _ = io.WriteString(w, `{"paidTier":{"id":"g1-pro-tier"}}`)
+			return
+		}
+		idx := int(calls.Add(1)) - 1
+		if idx >= len(fractions) {
+			idx = len(fractions) - 1
+		}
+		_, _ = fmt.Fprintf(w, `{"models":{"gemini-4-hydrogen-xhigh":{"quotaInfo":{"remainingFraction":%.3f,"resetTime":"2026-11-14T06:51:19Z"}}}}`, fractions[idx])
+	}))
+	defer dailyServer.Close()
+
+	prodServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(r.URL.Path, "loadCodeAssist") {
+			_, _ = io.WriteString(w, `{"paidTier":{"id":"g1-pro-tier"}}`)
+			return
+		}
+		t.Errorf("Pro account should query daily endpoint for quota models, unexpectedly hit prod %s", r.URL.Path)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer prodServer.Close()
+
+	t.Setenv(antigravityForwardBaseURLEnv, "")
+	antigravity.BaseURLs = []string{prodServer.URL, dailyServer.URL}
+	antigravity.DefaultURLAvailability = antigravity.NewURLAvailability(time.Minute)
+
+	account := Account{
+		ID:       9001,
+		Platform: PlatformAntigravity,
+		Type:     AccountTypeOAuth,
+		Status:   StatusActive,
+		Credentials: map[string]any{
+			"access_token": "ag-token",
+			"project_id":   "ag-project",
+			"plan_type":    "Pro",
+		},
+	}
+	repo := &stubOpenAIAccountRepo{accounts: []Account{account}}
+	svc := &AccountUsageService{
+		accountRepo:             repo,
+		antigravityQuotaFetcher: NewAntigravityQuotaFetcher(nil, &config.Config{}),
+		cache:                   NewUsageCache(),
+	}
+	ctx := context.Background()
+
+	// 1. 首次查询命中上游（7%）
+	u1, err := svc.GetUsage(ctx, account.ID, false)
+	if err != nil {
+		t.Fatalf("GetUsage #1 failed: %v", err)
+	}
+	if calls.Load() != 1 || u1.AntigravityQuota["gemini-4-hydrogen-xhigh"].Utilization != 7 {
+		t.Fatalf("unexpected first result: calls=%d util=%+v", calls.Load(), u1.AntigravityQuota["gemini-4-hydrogen-xhigh"])
+	}
+
+	// 2. 非强制查询命中缓存，不请求上游
+	u2, err := svc.GetUsage(ctx, account.ID, false)
+	if err != nil {
+		t.Fatalf("GetUsage #2 failed: %v", err)
+	}
+	if calls.Load() != 1 || u2.AntigravityQuota["gemini-4-hydrogen-xhigh"].Utilization != 7 {
+		t.Fatalf("expected cached result: calls=%d util=%+v", calls.Load(), u2.AntigravityQuota["gemini-4-hydrogen-xhigh"])
+	}
+
+	// 3. GetUsage(force=true) 穿透缓存（25%）
+	u3, err := svc.GetUsage(ctx, account.ID, true)
+	if err != nil {
+		t.Fatalf("GetUsage force failed: %v", err)
+	}
+	if calls.Load() != 2 || u3.AntigravityQuota["gemini-4-hydrogen-xhigh"].Utilization != 25 {
+		t.Fatalf("expected forced refresh: calls=%d util=%+v", calls.Load(), u3.AntigravityQuota["gemini-4-hydrogen-xhigh"])
+	}
+
+	// 4. GetUsageBatch(force=true) 穿透缓存（50%）
+	batchUsage, batchErrs, err := svc.GetUsageBatch(ctx, []int64{account.ID}, true)
+	if err != nil || len(batchErrs) != 0 {
+		t.Fatalf("GetUsageBatch force failed: err=%v batchErrs=%v", err, batchErrs)
+	}
+	if calls.Load() != 3 || batchUsage[account.ID].AntigravityQuota["gemini-4-hydrogen-xhigh"].Utilization != 50 {
+		t.Fatalf("expected forced batch refresh: calls=%d util=%+v", calls.Load(), batchUsage[account.ID].AntigravityQuota["gemini-4-hydrogen-xhigh"])
+	}
+
+	// 5. InvalidateAntigravityUsageCache 后非强制查询重新请求上游（75%）
+	svc.InvalidateAntigravityUsageCache(account.ID)
+	u5, err := svc.GetUsage(ctx, account.ID, false)
+	if err != nil {
+		t.Fatalf("GetUsage after invalidate failed: %v", err)
+	}
+	if calls.Load() != 4 || u5.AntigravityQuota["gemini-4-hydrogen-xhigh"].Utilization != 75 {
+		t.Fatalf("expected post-invalidate fetch: calls=%d util=%+v", calls.Load(), u5.AntigravityQuota["gemini-4-hydrogen-xhigh"])
+	}
 }

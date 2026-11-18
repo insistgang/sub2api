@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -56,8 +57,10 @@ func (f *AntigravityQuotaFetcher) FetchQuota(ctx context.Context, account *Accou
 		return nil, fmt.Errorf("create antigravity client failed: %w", err)
 	}
 
-	// 调用 API 获取配额
-	modelsResp, modelsRaw, err := client.FetchAvailableModels(ctx, accessToken, projectID, resolveModelsListReadLimit(f.cfg))
+	readLimit := resolveModelsListReadLimit(f.cfg)
+	baseURL := resolveAntigravityForwardBaseURL(account)
+	// 调用 API 获取配额（与转发/模型发现保持一致：付费账号或显式配置走 daily 端点）
+	modelsResp, modelsRaw, err := fetchAntigravityQuotaModels(ctx, client, baseURL, accessToken, projectID, readLimit)
 	if err != nil {
 		// 403 Forbidden: 不报错，返回 is_forbidden 标记
 		var forbiddenErr *antigravity.ForbiddenError
@@ -82,6 +85,13 @@ func (f *AntigravityQuotaFetcher) FetchQuota(ctx context.Context, account *Accou
 
 	// 调用 LoadCodeAssist 获取订阅等级和 AI Credits 余额（非关键路径，失败不影响主流程）
 	tierRaw, tierNormalized, loadResp := f.fetchSubscriptionTier(ctx, client, accessToken)
+
+	// 若账号凭据尚未写入 plan_type，但 LoadCodeAssist 返回了付费等级，则补拉一次 daily 配额池
+	if dailyURL := resolveAntigravityPaidDailyFallbackURL(account, baseURL, tierRaw, tierNormalized); dailyURL != "" {
+		if paidResp, paidRaw, paidErr := client.FetchAvailableModelsFromURL(ctx, dailyURL, accessToken, projectID, readLimit); paidErr == nil && paidResp != nil {
+			modelsResp, modelsRaw = paidResp, paidRaw
+		}
+	}
 
 	// 转换为 UsageInfo
 	usageInfo := f.buildUsageInfo(modelsResp, tierRaw, tierNormalized, loadResp)
@@ -175,7 +185,13 @@ func (f *AntigravityQuotaFetcher) buildUsageInfo(modelsResp *antigravity.FetchAv
 	}
 
 	// 同时设置 FiveHour 用于兼容展示（取主要模型）
-	priorityModels := []string{"gemini-4-argon-high", "gemini-4-argon", "gemini-3.8-flash-high", "gemini-3.8-flash", "claude-sonnet-5-5-high", "claude-sonnet-4-20250514", "claude-sonnet-4", "gemini-2.5-pro"}
+	priorityModels := []string{
+		"gemini-4-argon-high", "gemini-4-argon",
+		"gemini-4-hydrogen-xhigh", "gemini-4-hydrogen-high", "gemini-4-hydrogen",
+		"gemini-3.8-flash-high", "gemini-3.8-flash",
+		"claude-sonnet-5-5-high", "claude-sonnet-4-20250514", "claude-sonnet-4",
+		"gemini-2.5-pro",
+	}
 	for _, modelName := range priorityModels {
 		if modelInfo, ok := modelsResp.Models[modelName]; ok && modelInfo.QuotaInfo != nil {
 			utilization := (1.0 - modelInfo.QuotaInfo.RemainingFraction) * 100
@@ -269,6 +285,30 @@ func extractValidationURL(body string) string {
 	normalized := strings.ReplaceAll(body, `\u0026`, "&")
 	if m := urlPattern.FindString(normalized); m != "" {
 		return m
+	}
+	return ""
+}
+
+func fetchAntigravityQuotaModels(ctx context.Context, client *antigravity.Client, baseURL, accessToken, projectID string, bodyLimit int64) (*antigravity.FetchAvailableModelsResponse, map[string]any, error) {
+	if baseURL != "" {
+		return client.FetchAvailableModelsFromURL(ctx, baseURL, accessToken, projectID, bodyLimit)
+	}
+	return client.FetchAvailableModels(ctx, accessToken, projectID, bodyLimit)
+}
+
+func resolveAntigravityPaidDailyFallbackURL(account *Account, currentBaseURL, tierRaw, tierNormalized string) string {
+	if len(antigravity.BaseURLs) < 2 {
+		return ""
+	}
+	if strings.TrimSpace(os.Getenv(antigravityForwardBaseURLEnv)) != "" || accountHasAntigravityPaidTier(account) {
+		return ""
+	}
+	dailyURL := antigravity.BaseURLs[1]
+	if dailyURL == "" || dailyURL == currentBaseURL {
+		return ""
+	}
+	if tierNormalized == "PRO" || tierNormalized == "ULTRA" || antigravity.IsPaidPlanType(tierRaw) {
+		return dailyURL
 	}
 	return ""
 }

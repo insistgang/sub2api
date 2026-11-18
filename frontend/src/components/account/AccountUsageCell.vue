@@ -306,6 +306,16 @@
           color="indigo"
         />
 
+        <!-- Gemini 4 Hydrogen -->
+        <UsageProgressBar
+          v-if="antigravity4HydrogenUsageFromAPI !== null"
+          :label="t('admin.accounts.usageWindow.gemini4Hydrogen')"
+          label-width="auto"
+          :utilization="antigravity4HydrogenUsageFromAPI.utilization"
+          :resets-at="antigravity4HydrogenUsageFromAPI.resetTime"
+          color="indigo"
+        />
+
         <!-- Gemini 3.8 Flash -->
         <UsageProgressBar
           v-if="antigravity3FlashUsageFromAPI !== null"
@@ -974,6 +984,11 @@ const getAntigravityUsageFromAPI = (
 // Gemini 4 Argon from API
 const antigravity4ArgonUsageFromAPI = computed(() =>
   getAntigravityUsageFromAPI(['gemini-4-argon'])
+)
+
+// Gemini 4 Hydrogen from API
+const antigravity4HydrogenUsageFromAPI = computed(() =>
+  getAntigravityUsageFromAPI(['gemini-4-hydrogen'])
 )
 
 // Gemini 3 Pro from API (legacy fallback)

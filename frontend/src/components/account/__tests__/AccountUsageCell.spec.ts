@@ -558,6 +558,51 @@ describe('AccountUsageCell', () => {
     expect(wrapper.text()).toContain('admin.accounts.usageWindow.claude|5|2026-11-05T20:00:00Z')
   })
 
+  it('Antigravity 账号渲染 Gemini 4 Hydrogen 额度', async () => {
+    getUsage.mockResolvedValue({
+      antigravity_quota: {
+        'gemini-4-argon-high': {
+          utilization: 1,
+          reset_time: '2026-11-21T02:14:36Z'
+        },
+        'gemini-4-hydrogen-xhigh': {
+          utilization: 7,
+          reset_time: '2026-11-14T06:51:19Z'
+        },
+        'gemini-3.8-flash-high': {
+          utilization: 7,
+          reset_time: '2026-11-14T06:51:19Z'
+        }
+      }
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 1004,
+          platform: 'antigravity',
+          type: 'oauth',
+          extra: {}
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: {
+            props: ['label', 'utilization', 'resetsAt', 'color'],
+            template: '<div class="usage-bar">{{ label }}|{{ utilization }}|{{ resetsAt }}</div>'
+          },
+          AccountQuotaInfo: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('admin.accounts.usageWindow.gemini4Argon|1|2026-11-21T02:14:36Z')
+    expect(wrapper.text()).toContain('admin.accounts.usageWindow.gemini4Hydrogen|7|2026-11-14T06:51:19Z')
+    expect(wrapper.text()).toContain('admin.accounts.usageWindow.gemini3Flash|7|2026-11-14T06:51:19Z')
+  })
+
   it('Antigravity 会显示 AI Credits 余额信息', async () => {
     getUsage.mockResolvedValue({
       ai_credits: [
