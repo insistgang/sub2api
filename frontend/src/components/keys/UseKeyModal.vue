@@ -1582,6 +1582,33 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
       options: { store: false },
       variants: { low: {}, medium: {}, high: {}, xhigh: {}, max: {} }
     },
+    // 本站 Codex 上游已确认的最大上下文；默认档位遵循迁移指南。
+    'gpt-6.2-astra': {
+      name: 'GPT-6.2 Astra',
+      limit: { context: 872000, output: 128000 },
+      modalities: { input: ['text', 'image'], output: ['text'] },
+      options: { store: false, reasoningEffort: 'medium' },
+      variants: {
+        low: { reasoningEffort: 'low' },
+        medium: { reasoningEffort: 'medium' },
+        high: { reasoningEffort: 'high' },
+        xhigh: { reasoningEffort: 'xhigh' },
+        max: { reasoningEffort: 'max' }
+      }
+    },
+    'gpt-6.2-sol': {
+      name: 'GPT-6.2 Sol',
+      limit: { context: 872000, output: 128000 },
+      modalities: { input: ['text', 'image'], output: ['text'] },
+      options: { store: false, reasoningEffort: 'medium' },
+      variants: {
+        low: { reasoningEffort: 'low' },
+        medium: { reasoningEffort: 'medium' },
+        high: { reasoningEffort: 'high' },
+        xhigh: { reasoningEffort: 'xhigh' },
+        max: { reasoningEffort: 'max' }
+      }
+    },
     'gpt-6': {
       name: 'GPT-6 (Astra)',
       limit: {

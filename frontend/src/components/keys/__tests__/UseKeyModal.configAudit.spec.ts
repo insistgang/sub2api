@@ -22,6 +22,23 @@ async function selectClient(wrapper: ReturnType<typeof openModal>, key: string) 
 describe('API key client setup configuration', () => {
   afterEach(() => vi.unstubAllGlobals())
 
+  it('exports GPT-6.2 models with verified relay limits and supported reasoning efforts', async () => {
+    const wrapper = openModal('openai')
+    await selectClient(wrapper, 'keys.useKeyModal.cliTabs.opencode')
+    const models = JSON.parse(wrapper.find('pre code').text()).provider.openai.models
+    for (const id of ['gpt-6.2-astra', 'gpt-6.2-sol']) {
+      expect(models[id]).toMatchObject({
+        limit: { context: 872000, output: 128000 },
+        modalities: { input: ['text', 'image'], output: ['text'] },
+        options: { store: false, reasoningEffort: 'medium' }
+      })
+      expect(Object.keys(models[id].variants).sort()).toEqual(['low', 'medium', 'high', 'xhigh', 'max'].sort())
+      for (const effort of ['low', 'medium', 'high', 'xhigh', 'max']) {
+        expect(models[id].variants[effort].reasoningEffort).toBe(effort)
+      }
+    }
+  })
+
   it('loads the Codex model catalog correctly when the site base ends in v1beta', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, text: async () => '{"models":[{"slug":"gpt-6.1-terra"}]}' })
     vi.stubGlobal('fetch', fetchMock)

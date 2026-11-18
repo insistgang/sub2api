@@ -402,6 +402,7 @@ type configuredCodexModelDescriptor struct {
 	SupportsParallelToolCalls         bool                            `json:"supports_parallel_tool_calls"`
 	ContextWindow                     int64                           `json:"context_window"`
 	MaxContextWindow                  int64                           `json:"max_context_window"`
+	MaxOutputTokens                   int64                           `json:"max_output_tokens,omitempty"`
 	AutoCompactTokenLimit             any                             `json:"auto_compact_token_limit"`
 	CompHash                          any                             `json:"comp_hash"`
 	EffectiveContextWindowPercent     int64                           `json:"effective_context_window_percent"`
@@ -554,6 +555,26 @@ func newConfiguredCodexModelDescriptor(modelID string) configuredCodexModelDescr
 		descriptor.Slug = modelID
 		descriptor.officialMetadata = openai.CodexGPT61TerraMetadata
 	}
+	if base, _ := openai.GPT62ModelIdentity(modelID); base != "" {
+		// Verified Codex discovery limits differ from the standalone API window.
+		// These are gateway defaults; account metadata is applied afterward.
+		low, xhigh := "low", "xhigh"
+		freeform := "freeform"
+		descriptor.DefaultReasoningLevel = &low
+		descriptor.SupportedReasoningLevels = configuredCodexGPTReasoningLevels(modelID)
+		descriptor.ContextWindow = 272_000
+		if base == "gpt-6.2-sol" {
+			descriptor.ContextWindow = 500_000
+		}
+		descriptor.MaxContextWindow = 872_000
+		descriptor.MaxOutputTokens = 128_000
+		descriptor.InputModalities = []string{"text", "image"}
+		descriptor.ApplyPatchToolType = &freeform
+		descriptor.CompHash = "3000"
+		descriptor.SupportsSearchTool = true
+		descriptor.MultiAgentReasoningEffort = &xhigh
+		descriptor.MultiAgentVersion = "v2"
+	}
 	if openai.IsGPT61SolModelSpelling(modelID) {
 		if err := json.Unmarshal(openai.CodexGPT61SolMetadata, &descriptor); err != nil {
 			panic(err)
@@ -663,7 +684,7 @@ func configuredCodexGPTReasoningLevels(modelID string) []configuredCodexReasonin
 			Description: "Maximum reasoning depth for complex tasks",
 		})
 	}
-	if isOpenAIGPT6AstraModel(modelID) || openai.IsGPT61SolModelSpelling(modelID) || normalized == "gpt-5.6-sol" || normalized == "gpt-5.6-terra" {
+	if openai.IsGPT62ModelSpelling(modelID) || isOpenAIGPT6AstraModel(modelID) || openai.IsGPT61SolModelSpelling(modelID) || normalized == "gpt-5.6-sol" || normalized == "gpt-5.6-terra" {
 		levels = append(levels, configuredCodexReasoningLevel{
 			Effort:      "ultra",
 			Description: "Maximum reasoning with automatic task delegation",
@@ -1006,7 +1027,11 @@ func buildCodexModelsManifest(
 		seen[modelID] = struct{}{}
 		descriptor := newConfiguredCodexModelDescriptor(metadataModelID)
 		descriptor.Slug = modelID
-		descriptor.SupportsSearchTool = searchToolModels[modelID]
+		// Preserve legacy nil-map=false behavior; only GPT-6.2 has a new
+		// synthesized search default. Explicit account metadata still wins below.
+		if searchToolModels != nil || !openai.IsGPT62ModelSpelling(metadataModelID) {
+			descriptor.SupportsSearchTool = searchToolModels[modelID]
+		}
 		if metadata, ok := modelMetadata[modelID]; ok {
 			applyUpstreamModelMetadataToCodexDescriptor(&descriptor, metadata)
 		}
@@ -2100,6 +2125,8 @@ func CodexModelsManifestETag(body []byte) string {
 }
 
 var apiKeyCodexModelsWithoutResponsesLite = map[string]struct{}{
+	"gpt-6.2-astra": {},
+	"gpt-6.2-sol":   {},
 	"gpt-6.1-terra": {},
 	"gpt-6.1-sol":   {},
 	"gpt-6-astra":   {},
@@ -2135,6 +2162,9 @@ func adjustAPIKeyCodexModelsManifest(body []byte, account *Account) ([]byte, err
 		target := slug
 		if account != nil {
 			target = account.GetMappedModel(slug)
+		}
+		if base, _ := openai.GPT62ModelIdentity(target); base != "" {
+			target = base
 		}
 		if isOpenAIGPT6AstraModel(target) {
 			target = "gpt-6-astra"
@@ -2344,8 +2374,11 @@ func applySyncedAPIKeyCodexModelMetadata(body []byte, account *Account, overwrit
 		if len(normalizeCodexInputModalities(metadata.InputModalities)) > 0 {
 			fields = append(fields, "input_modalities")
 		}
-		if metadata.ContextWindow > 0 {
+		if metadata.ContextWindow > 0 || metadata.MaxContextWindow > 0 {
 			fields = append(fields, "context_window", "max_context_window")
+		}
+		if metadata.MaxOutputTokens > 0 {
+			fields = append(fields, "max_output_tokens")
 		}
 
 		// List conversion has already applied live fields over account capabilities.

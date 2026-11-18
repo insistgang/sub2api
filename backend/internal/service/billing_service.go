@@ -586,6 +586,16 @@ func (s *BillingService) initFallbackPricing() {
 		SupportsCacheBreakdown:     false,
 	}
 
+	for model, pricing := range openAIGPT62FallbackPrices {
+		s.fallbackPrices[model] = &ModelPricing{
+			InputPricePerToken: pricing.InputCostPerToken, InputPricePerTokenPriority: pricing.InputCostPerTokenPriority,
+			OutputPricePerToken: pricing.OutputCostPerToken, OutputPricePerTokenPriority: pricing.OutputCostPerTokenPriority,
+			CacheCreationPricePerToken: pricing.CacheCreationInputTokenCost, CacheCreationPricePerTokenPriority: pricing.CacheCreationInputTokenCostPriority,
+			CacheReadPricePerToken: pricing.CacheReadInputTokenCost, CacheReadPricePerTokenPriority: pricing.CacheReadInputTokenCostPriority,
+			CacheCreationPriceExplicit: true,
+			LongContextInputThreshold:  pricing.LongContextInputTokenThreshold, LongContextInputMultiplier: pricing.LongContextInputCostMultiplier, LongContextOutputMultiplier: pricing.LongContextOutputCostMultiplier,
+		}
+	}
 	s.fallbackPrices["gpt-6-astra"] = &ModelPricing{
 		InputPricePerToken:                 10e-6,
 		InputPricePerTokenPriority:         20e-6,
@@ -1280,7 +1290,7 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 	// OpenAI（GPT-5 / Codex 族）：仅匹配已知型号，避免未知 OpenAI 型号误计价。
 	if normalized := normalizeKnownOpenAICodexModel(modelLower); normalized != "" {
 		switch normalized {
-		case "gpt-6.1-terra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna":
+		case "gpt-6.2-astra", "gpt-6.2-sol", "gpt-6.1-terra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna":
 			return s.fallbackPrices[normalized]
 		case "gpt-6-astra":
 			return s.fallbackPrices["gpt-6-astra"]
@@ -1456,7 +1466,7 @@ func (s *BillingService) getModelPricingAt(model string, pricingAt time.Time) (*
 				InputPricePerTokenPriority:         litellmPricing.InputCostPerTokenPriority,
 				OutputPricePerToken:                litellmPricing.OutputCostPerToken,
 				OutputPricePerTokenPriority:        litellmPricing.OutputCostPerTokenPriority,
-				CacheCreationPriceExplicit:         (openai.IsGPT6SolOrLunaModelSpelling(model) || openai.IsGPT61SolModelSpelling(model) || openai.IsGPT61TerraModelSpelling(model)) && litellmPricing.CacheCreationInputTokenCostExplicit,
+				CacheCreationPriceExplicit:         (openai.IsGPT62ModelSpelling(model) || openai.IsGPT6SolOrLunaModelSpelling(model) || openai.IsGPT61SolModelSpelling(model) || openai.IsGPT61TerraModelSpelling(model)) && litellmPricing.CacheCreationInputTokenCostExplicit,
 				CacheCreationPricePerToken:         litellmPricing.CacheCreationInputTokenCost,
 				CacheCreationPricePerTokenPriority: litellmPricing.CacheCreationInputTokenCostPriority,
 				CacheReadPricePerToken:             litellmPricing.CacheReadInputTokenCost,
@@ -1948,6 +1958,13 @@ func (s *BillingService) applyModelSpecificPricingPolicy(model string, pricing *
 func (s *BillingService) applyModelSpecificPricingPolicyEx(model string, pricing *ModelPricing, forceDeepSeekRates bool, pricingAt time.Time) *ModelPricing {
 	if pricing == nil {
 		return nil
+	}
+	if openai.IsGPT62ModelSpelling(model) {
+		// Only the time-limited Ultrafast tariff is model-owned. Do not
+		// replace explicit Standard/Fast/cache/long-context operator prices.
+		cloned := *pricing
+		cloned.UltrafastMultiplier = gpt62UltrafastMultiplierAt(pricingAt)
+		return &cloned
 	}
 	// DeepSeek 模型：无论 JSON/远端价格表给什么价，一律强制官方低谷价
 	// （Flash 三档为 2026-09-10 官方降价后口径）。这是覆盖远端旧价的关键——远端

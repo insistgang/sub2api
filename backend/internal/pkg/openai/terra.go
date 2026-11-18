@@ -36,6 +36,9 @@ func ValidateGPT61TerraReasoningEffort(model, effort string) error {
 // ValidateModelReasoningEffort retains existing Sol validation and adds Terra's
 // distinct API reasoning scale. Codex ultra remains a client orchestration mode.
 func ValidateModelReasoningEffort(model, effort string) error {
+	if err := ValidateGPT62ReasoningEffort(model, effort); err != nil {
+		return err
+	}
 	if err := ValidateGPT61TerraReasoningEffort(model, effort); err != nil {
 		return err
 	}
@@ -43,5 +46,5 @@ func ValidateModelReasoningEffort(model, effort string) error {
 }
 
 func RequiresResponsesForToolCalls(model string) bool {
-	return IsGPT61SolModelSpelling(model) || IsGPT61TerraModelSpelling(model)
+	return IsGPT62ModelSpelling(model) || IsGPT61SolModelSpelling(model) || IsGPT61TerraModelSpelling(model)
 }

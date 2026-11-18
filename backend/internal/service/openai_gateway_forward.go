@@ -21,6 +21,10 @@ import (
 func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (*OpenAIForwardResult, error) {
 	// Terra API effort validation must run before normalization discards an unsupported selection.
 	mappedModel := normalizeOpenAIModelForUpstream(account, account.GetMappedModel(gjson.GetBytes(body, "model").String()))
+	if err := validateGPT62CompatRequest(body, mappedModel); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "invalid_request_error", "message": err.Error()}})
+		return nil, err
+	}
 	if openai.IsGPT61TerraModelSpelling(mappedModel) {
 		if err := validateGPT61TerraCompatRequest(body, mappedModel); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "invalid_request_error", "message": err.Error()}})
