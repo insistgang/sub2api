@@ -5,8 +5,10 @@ package service
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -554,4 +556,156 @@ func TestExtractValidationURL(t *testing.T) {
 			require.Equal(t, tt.expected, got)
 		})
 	}
+}
+
+func TestFetchQuota_EndpointRoutingByPlanTier(t *testing.T) {
+	oldBaseURLs := append([]string(nil), antigravity.BaseURLs...)
+	oldAvailability := antigravity.DefaultURLAvailability
+	t.Cleanup(func() {
+		antigravity.BaseURLs = oldBaseURLs
+		antigravity.DefaultURLAvailability = oldAvailability
+	})
+
+	prodHandler := func(loadTierJSON string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if strings.Contains(r.URL.Path, "loadCodeAssist") {
+				_, _ = io.WriteString(w, loadTierJSON)
+				return
+			}
+			// prod 池无 gemini-4-hydrogen，且 gemini-4-argon 已用尽（100%）
+			_, _ = io.WriteString(w, `{
+				"models":{
+					"gemini-4-argon-high":{"quotaInfo":{"resetTime":"2026-11-16T08:02:37Z"}},
+					"gemini-3.8-flash-high":{"quotaInfo":{"remainingFraction":0.18,"resetTime":"2026-11-14T04:25:30Z"}}
+				}
+			}`)
+		}
+	}
+
+	dailyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(r.URL.Path, "loadCodeAssist") {
+			_, _ = io.WriteString(w, `{"paidTier":{"id":"g1-pro-tier"}}`)
+			return
+		}
+		_, _ = io.WriteString(w, `{
+			"models":{
+				"gemini-4-argon-high":{"quotaInfo":{"remainingFraction":0.99,"resetTime":"2026-11-21T02:14:36Z"}},
+				"gemini-4-hydrogen-xhigh":{"quotaInfo":{"remainingFraction":0.924,"resetTime":"2026-11-14T06:51:19Z"}},
+				"gemini-3.8-flash-high":{"quotaInfo":{"remainingFraction":0.924,"resetTime":"2026-11-14T06:51:19Z"}}
+			}
+		}`)
+	}))
+	defer dailyServer.Close()
+
+	tests := []struct {
+		name           string
+		planType       string
+		envMode        string
+		loadTierJSON   string
+		wantHydrogen   bool
+		wantArgonUtil  int
+	}{
+		{
+			name:          "Pro account uses daily endpoint",
+			planType:      "Pro",
+			loadTierJSON:  `{"paidTier":{"id":"g1-pro-tier"}}`,
+			wantHydrogen:  true,
+			wantArgonUtil: 1,
+		},
+		{
+			name:          "Ultra account uses daily endpoint",
+			planType:      "Ultra",
+			loadTierJSON:  `{"paidTier":{"id":"g1-ultra-tier"}}`,
+			wantHydrogen:  true,
+			wantArgonUtil: 1,
+		},
+		{
+			name:          "Free account stays on prod endpoint",
+			planType:      "Free",
+			loadTierJSON:  `{"currentTier":{"id":"free-tier"}}`,
+			wantHydrogen:  false,
+			wantArgonUtil: 100,
+		},
+		{
+			name:          "Explicit daily env overrides Free plan",
+			planType:      "Free",
+			envMode:       "daily",
+			loadTierJSON:  `{"currentTier":{"id":"free-tier"}}`,
+			wantHydrogen:  true,
+			wantArgonUtil: 1,
+		},
+		{
+			name:          "Legacy paid account without saved plan_type re-fetches daily",
+			planType:      "",
+			loadTierJSON:  `{"paidTier":{"id":"g1-pro-tier"}}`,
+			wantHydrogen:  true,
+			wantArgonUtil: 1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(antigravityForwardBaseURLEnv, tc.envMode)
+			prodServer := httptest.NewServer(prodHandler(tc.loadTierJSON))
+			defer prodServer.Close()
+
+			antigravity.BaseURLs = []string{prodServer.URL, dailyServer.URL}
+			antigravity.DefaultURLAvailability = antigravity.NewURLAvailability(time.Minute)
+
+			creds := map[string]any{
+				"access_token": "token",
+				"project_id":   "project",
+			}
+			if tc.planType != "" {
+				creds["plan_type"] = tc.planType
+			}
+
+			fetcher := NewAntigravityQuotaFetcher(nil, &config.Config{})
+			res, err := fetcher.FetchQuota(context.Background(), &Account{
+				Platform:    PlatformAntigravity,
+				Type:        AccountTypeOAuth,
+				Credentials: creds,
+			}, "")
+			require.NoError(t, err)
+			require.NotNil(t, res)
+			require.NotNil(t, res.UsageInfo)
+
+			argon := res.UsageInfo.AntigravityQuota["gemini-4-argon-high"]
+			require.NotNil(t, argon)
+			require.Equal(t, tc.wantArgonUtil, argon.Utilization)
+
+			_, hasHydrogen := res.UsageInfo.AntigravityQuota["gemini-4-hydrogen-xhigh"]
+			require.Equal(t, tc.wantHydrogen, hasHydrogen)
+			if tc.wantHydrogen {
+				require.Equal(t, 7, res.UsageInfo.AntigravityQuota["gemini-4-hydrogen-xhigh"].Utilization)
+			}
+		})
+	}
+}
+
+func TestBuildUsageInfo_Gemini4HydrogenPriority(t *testing.T) {
+	fetcher := &AntigravityQuotaFetcher{}
+	modelsResp := &antigravity.FetchAvailableModelsResponse{
+		Models: map[string]antigravity.ModelInfo{
+			"gemini-4-hydrogen-xhigh": {
+				QuotaInfo: &antigravity.ModelQuotaInfo{
+					RemainingFraction: 0.924,
+					ResetTime:         "2026-11-14T06:51:19Z",
+				},
+			},
+			"gemini-3.8-flash-high": {
+				QuotaInfo: &antigravity.ModelQuotaInfo{
+					RemainingFraction: 0.50,
+				},
+			},
+		},
+	}
+
+	info := fetcher.buildUsageInfo(modelsResp, "g1-pro-tier", "PRO", nil)
+	require.NotNil(t, info.AntigravityQuota["gemini-4-hydrogen-xhigh"])
+	require.Equal(t, 7, info.AntigravityQuota["gemini-4-hydrogen-xhigh"].Utilization)
+	require.NotNil(t, info.FiveHour)
+	require.InDelta(t, 7.6, info.FiveHour.Utilization, 0.01)
 }

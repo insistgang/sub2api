@@ -59,6 +59,15 @@ describe('useModelWhitelist', () => {
     ]))
   })
 
+  it('offers both GPT-6.2 models with independent identity mappings', () => {
+    const models = getModelsByPlatform('openai')
+    const mappings = getPresetMappingsByPlatform('openai')
+    for (const id of ['gpt-6.2-astra', 'gpt-6.2-sol']) {
+      expect(models).toContain(id)
+      expect(mappings).toContainEqual(expect.objectContaining({ from: id, to: id }))
+    }
+  })
+
   it('openai 模型列表不再暴露已下线的 ChatGPT 登录 Codex 模型', () => {
     const models = getModelsByPlatform('openai')
 

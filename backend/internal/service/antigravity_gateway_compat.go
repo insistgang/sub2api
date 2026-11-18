@@ -71,6 +71,10 @@ func (s *AntigravityGatewayService) ForwardAsChatCompletions(
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 	}
 
+	if isAntigravityGeminiCompatRequest(account, request.Model) {
+		stripChatHistoryReasoningForGemini(request.Messages)
+	}
+
 	responsesRequest, err := chatCompletionsToResponses(settingServiceConfig(s.settingService), &request)
 	if err != nil {
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
@@ -161,6 +165,24 @@ func preserveChatCompletionTokenLimit(request *apicompat.ChatCompletionsRequest,
 	}
 	if limit != nil && *limit > 0 {
 		claudeRequest.MaxTokens = min(*limit, antigravityCompatMaxTokens)
+	}
+}
+
+func isAntigravityGeminiCompatRequest(account *Account, requestedModel string) bool {
+	if mapped := strings.ToLower(strings.TrimSpace(mapAntigravityModel(account, requestedModel))); mapped != "" {
+		return strings.HasPrefix(mapped, "gemini-")
+	}
+	normalized := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(requestedModel), "models/")))
+	return strings.HasPrefix(normalized, "gemini-")
+}
+
+func stripChatHistoryReasoningForGemini(messages []apicompat.ChatMessage) {
+	for i := range messages {
+		messages[i].ReasoningContent = ""
+		messages[i].Reasoning = ""
+		if messages[i].Role == "assistant" {
+			messages[i].Content = dropChatReasoningContentParts(messages[i].Content)
+		}
 	}
 }
 
@@ -278,6 +300,8 @@ func (s *AntigravityGatewayService) buildAntigravityCompatGeminiBody(
 			return nil, err
 		}
 		body = ensureGeminiFunctionCallThoughtSignatures(body)
+		includeThoughts := claudeRequest != nil && claudeRequest.Stream
+		body = applyGeminiCompatThinkingConfig(body, claudeBody, mappedModel, includeThoughts)
 		body, err = injectIdentityPatchToGeminiRequest(body)
 		if err != nil {
 			return nil, err

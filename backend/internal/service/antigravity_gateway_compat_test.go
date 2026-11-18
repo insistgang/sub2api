@@ -182,6 +182,83 @@ func TestAntigravityHydrogenXHighAcrossCompatibilityEntrypoints(t *testing.T) {
 	}
 }
 
+func TestAntigravityCompatChat_DropsHistoryReasoningAndStreamsThoughtsForHydrogen(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	account := newAntigravityCompatAccount(AccountTypeOAuth)
+	delete(account.Credentials, "model_mapping")
+	upstreamBody := `data: {"response":{"responseId":"resp_h2","candidates":[{"content":{"parts":[{"text":"Plan carefully.","thought":true}]}}]}}` + "\n\n" +
+		`data: {"response":{"responseId":"resp_h2","candidates":[{"content":{"parts":[{"text":"Final answer","thoughtSignature":"sig"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":10,"candidatesTokenCount":3,"thoughtsTokenCount":5}}}` + "\n\n"
+	upstream := &queuedHTTPUpstreamStub{responses: []*http.Response{{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}}
+	svc := newAntigravityCompatService(config.GatewayConfig{MaxLineSize: defaultMaxLineSize}, upstream)
+	body := []byte(`{
+		"model":"gemini-4-hydrogen",
+		"stream":true,
+		"reasoning_effort":"high",
+		"messages":[
+			{"role":"user","content":"hi"},
+			{"role":"assistant","reasoning_content":"PRIOR_KIMI_THOUGHT","content":"Prior answer"},
+			{"role":"user","content":"next"}
+		]
+	}`)
+	c, recorder := newAntigravityCompatContext(http.MethodPost, "/v1/chat/completions", body)
+
+	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Len(t, upstream.requestBodies, 1)
+	require.Equal(t, "gemini-4-hydrogen-high", gjson.GetBytes(upstream.requestBodies[0], "model").String())
+	require.True(t, gjson.GetBytes(upstream.requestBodies[0], "request.generationConfig.thinkingConfig.includeThoughts").Bool())
+	rawUpstreamReq := string(upstream.requestBodies[0])
+	require.NotContains(t, rawUpstreamReq, "PRIOR_KIMI_THOUGHT")
+	require.NotContains(t, rawUpstreamReq, "<thinking>")
+	require.Contains(t, rawUpstreamReq, "Prior answer")
+
+	var reasoning, content strings.Builder
+	for _, line := range strings.Split(recorder.Body.String(), "\n") {
+		payload, ok := strings.CutPrefix(line, "data: ")
+		if !ok || payload == "[DONE]" {
+			continue
+		}
+		delta := gjson.Get(payload, "choices.0.delta")
+		if r := delta.Get("reasoning_content"); r.Exists() {
+			_, _ = reasoning.WriteString(r.String())
+		}
+		if text := delta.Get("content"); text.Exists() {
+			_, _ = content.WriteString(text.String())
+		}
+	}
+	require.Equal(t, "Plan carefully.", reasoning.String())
+	require.Equal(t, "Final answer", content.String())
+}
+
+func TestAntigravityCompatChat_PreservesHistoryReasoningForClaudeModels(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	upstream := &queuedHTTPUpstreamStub{responses: []*http.Response{antigravityCompatSuccessResponse()}}
+	svc := newAntigravityCompatService(config.GatewayConfig{MaxLineSize: defaultMaxLineSize}, upstream)
+	body := []byte(`{
+		"model":"claude-sonnet-4-6",
+		"messages":[
+			{"role":"user","content":"hi"},
+			{"role":"assistant","reasoning_content":"PRIOR_CLAUDE_THOUGHT","content":"Prior answer"},
+			{"role":"user","content":"next"}
+		]
+	}`)
+	c, recorder := newAntigravityCompatContext(http.MethodPost, "/v1/chat/completions", body)
+
+	_, err := svc.ForwardAsChatCompletions(context.Background(), c, newAntigravityCompatAccount(AccountTypeOAuth), body, nil)
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Len(t, upstream.requestBodies, 1)
+	require.Contains(t, gjson.GetBytes(upstream.requestBodies[0], "request.contents.1.parts.0.text").String(), "<thinking>PRIOR_CLAUDE_THOUGHT</thinking>")
+}
+
 func TestAntigravityCompatOAuthUsesNativeTokenAndRoute(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

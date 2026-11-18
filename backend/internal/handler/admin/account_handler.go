@@ -1538,6 +1538,9 @@ func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *serv
 	h.adminService.EnsureOpenAIPrivacy(ctx, updatedAccount)
 	// Antigravity OAuth: 刷新成功后检查并设置 privacy_mode
 	h.adminService.EnsureAntigravityPrivacy(ctx, updatedAccount)
+	if updatedAccount.Platform == service.PlatformAntigravity && h.accountUsageService != nil {
+		h.accountUsageService.InvalidateAntigravityUsageCache(updatedAccount.ID)
+	}
 
 	return updatedAccount, "", nil
 }

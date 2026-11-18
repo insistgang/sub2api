@@ -1335,7 +1335,7 @@ func normalizeOpenAIOAuthResponsesCompatibilityBody(body []byte) ([]byte, bool, 
 }
 
 func normalizeGPT6ResponsesSampling(body []byte, model string) ([]byte, bool, error) {
-	if (!openai.IsGPT6SolOrLunaModelSpelling(model) && !openai.IsGPT61SolModelSpelling(model) && !openai.IsGPT61TerraModelSpelling(model)) || gjson.GetBytes(body, "reasoning.effort").String() == "none" {
+	if (!openai.IsGPT62ModelSpelling(model) && !openai.IsGPT6SolOrLunaModelSpelling(model) && !openai.IsGPT61SolModelSpelling(model) && !openai.IsGPT61TerraModelSpelling(model)) || gjson.GetBytes(body, "reasoning.effort").String() == "none" {
 		return body, false, nil
 	}
 	out := body
@@ -1377,6 +1377,9 @@ func normalizeOpenAIResponsesReasoningMode(body []byte, model string) ([]byte, b
 	// established mode stripping and pro-to-max compatibility behavior.
 	if model == "" {
 		model = gjson.GetBytes(body, "model").String()
+	}
+	if err := validateGPT62CompatRequest(body, model); err != nil {
+		return body, false, err
 	}
 	if openai.IsGPT61TerraModelSpelling(model) {
 		if err := validateGPT61TerraCompatRequest(body, model); err != nil {
@@ -2576,6 +2579,9 @@ func normalizeOpenAIReasoningEffort(raw string) string {
 }
 
 func normalizeOpenAIReasoningEffortForModel(raw, model string) string {
+	if strings.EqualFold(strings.TrimSpace(raw), "ultra") && openai.IsGPT62ModelSpelling(model) {
+		return "ultra"
+	}
 	if strings.EqualFold(strings.TrimSpace(raw), "none") && openai.IsGPT6SolOrLunaModelSpelling(model) {
 		return "none"
 	}
@@ -2613,6 +2619,9 @@ func supportsOpenAIReasoningEffortMax(model string) bool {
 // model-specific validation, including Terra, before conversion can discard
 // unsupported explicit effort selections or disabled thinking.
 func validateGPT61SolCompatRequest(body []byte, model string) error {
+	if openai.IsGPT62ModelSpelling(model) {
+		return validateGPT62CompatRequest(body, model)
+	}
 	if openai.IsGPT61TerraModelSpelling(model) {
 		return validateGPT61TerraCompatRequest(body, model)
 	}
@@ -2635,6 +2644,25 @@ func validateGPT61SolCompatRequest(body []byte, model string) error {
 		}
 	}
 	return nil
+}
+
+func validateGPT62CompatRequest(body []byte, model string) error {
+	if !openai.IsGPT62ModelSpelling(model) {
+		return nil
+	}
+	if strings.EqualFold(strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_options.ttl").String()), "12h") {
+		return fmt.Errorf("%s: 12h cache retention cannot be billed; use prompt_cache_options.ttl=30m", model)
+	}
+	for _, path := range []string{"reasoning.effort", "reasoning_effort", "output_config.effort"} {
+		if err := openai.ValidateGPT62ReasoningEffort(model, gjson.GetBytes(body, path).String()); err != nil {
+			return err
+		}
+	}
+	if gjson.GetBytes(body, "thinking.type").String() == "disabled" {
+		return openai.ValidateGPT62ReasoningEffort(model, "none")
+	}
+	_, effort := openai.GPT62ModelIdentity(gjson.GetBytes(body, "model").String())
+	return openai.ValidateGPT62ReasoningEffort(model, effort)
 }
 
 // Validate before bridge conversion can erase unsupported explicit effort values.
